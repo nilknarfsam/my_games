@@ -2,7 +2,13 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#080c16" />
     <title>Xadrez 3D — Three.js</title>
   </head>
   <body>
@@ -97,10 +103,14 @@
           <button id="btn-undo" class="btn" type="button">Desfazer Lance (U)</button>
           <button id="btn-flip" class="btn" type="button">Girar Câmera (C)</button>
           <button id="btn-mute" class="btn" type="button">Som: Ligado (M)</button>
+          <button id="btn-mobile-drawer" class="btn mobile-only" type="button">Opções & Histórico</button>
         </div>
 
         <div class="panel history-panel">
-          <h2>Histórico de Lances</h2>
+          <div class="history-header">
+            <h2>Histórico de Lances</h2>
+            <button id="btn-mobile-close" class="btn btn-compact mobile-only" type="button">Fechar</button>
+          </div>
           <ol id="move-history" class="move-list"></ol>
         </div>
       </aside>

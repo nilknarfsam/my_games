@@ -21,10 +21,12 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
   background: radial-gradient(circle at 50% 35%, #162038 0%, var(--bg) 75%);
   color: var(--text);
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #scene {
@@ -33,6 +35,7 @@ body,
   width: 100%;
   height: 100%;
   display: block;
+  touch-action: none;
 }
 
 .hud {
@@ -362,18 +365,138 @@ select {
   gap: 10px;
 }
 
+.mobile-only {
+  display: none;
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.history-header h2 {
+  margin-bottom: 0;
+}
+
+.btn-compact {
+  width: auto;
+  padding: 5px 10px;
+  font-size: 11.5px;
+}
+
 @media (max-width: 900px) {
+  .mobile-only {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .hud {
-    width: 195px;
-    top: 10px;
+    width: auto;
+    gap: 8px;
   }
+
   .hud-left {
-    left: 10px;
+    top: max(8px, env(safe-area-inset-top));
+    left: 8px;
+    right: 8px;
   }
+
   .hud-right {
-    right: 10px;
+    top: auto;
+    bottom: max(8px, env(safe-area-inset-bottom));
+    left: 8px;
+    right: 8px;
   }
+
+  .brand,
+  .config-panel,
+  .captured-panel,
   .history-panel {
+    display: none;
+  }
+
+  .status-panel {
+    padding: 9px 12px;
+  }
+
+  .turn-indicator strong {
+    font-size: 15px;
+  }
+
+  .clocks-panel {
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .clock-box {
+    padding: 5px 6px;
+  }
+
+  .clock-box strong {
+    font-size: 15px;
+  }
+
+  .actions-panel {
+    padding: 8px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .castle-actions {
+    grid-column: 1 / -1;
+    flex-direction: row;
+  }
+
+  .actions-panel .btn {
+    padding: 9px 6px;
+    font-size: 11.5px;
+    min-height: 38px;
+  }
+
+  #btn-mobile-drawer {
+    grid-column: 1 / -1;
+    background: rgba(56, 189, 248, 0.2);
+    border-color: rgba(56, 189, 248, 0.5);
+  }
+
+  /* Expanded mobile drawer for options, captured pieces, and move history */
+  #app.mobile-drawer-open .hud-left,
+  #app.mobile-drawer-open .hud-right {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    z-index: 22;
+  }
+
+  #app.mobile-drawer-open .hud-left {
+    top: max(10px, env(safe-area-inset-top));
+    max-height: 52vh;
+    overflow-y: auto;
+  }
+
+  #app.mobile-drawer-open .hud-right {
+    bottom: max(10px, env(safe-area-inset-bottom));
+    max-height: 42vh;
+    overflow-y: auto;
+  }
+
+  #app.mobile-drawer-open .config-panel,
+  #app.mobile-drawer-open .captured-panel,
+  #app.mobile-drawer-open .history-panel {
+    display: flex;
+  }
+
+  #app.mobile-drawer-open .history-panel {
+    flex-direction: column;
+  }
+
+  #app.mobile-drawer-open .status-panel,
+  #app.mobile-drawer-open .clocks-panel,
+  #app.mobile-drawer-open .actions-panel {
     display: none;
   }
 }
