@@ -1,0 +1,176 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/arena.gd" id="2_arena"]
+
+[node name="Main" type="Node2D"]
+script = ExtResource("1_main")
+
+[node name="CanvasModulate" type="CanvasModulate" parent="."]
+color = Color(0.45, 0.48, 0.56, 1)
+
+[node name="Arena" type="Node2D" parent="."]
+script = ExtResource("2_arena")
+
+[node name="PlayersContainer" type="Node2D" parent="."]
+
+[node name="BotsContainer" type="Node2D" parent="."]
+
+[node name="BulletsContainer" type="Node2D" parent="."]
+
+[node name="PlayersSpawner" type="MultiplayerSpawner" parent="."]
+_spawnable_scenes = PackedStringArray("res://scenes/player.tscn")
+spawn_path = NodePath("../PlayersContainer")
+
+[node name="BotsSpawner" type="MultiplayerSpawner" parent="."]
+_spawnable_scenes = PackedStringArray("res://scenes/bot.tscn")
+spawn_path = NodePath("../BotsContainer")
+
+[node name="BulletsSpawner" type="MultiplayerSpawner" parent="."]
+_spawnable_scenes = PackedStringArray("res://scenes/bullet.tscn")
+spawn_path = NodePath("../BulletsContainer")
+
+[node name="LobbyUI" type="CanvasLayer" parent="."]
+
+[node name="CenterContainer" type="CenterContainer" parent="LobbyUI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Panel" type="PanelContainer" parent="LobbyUI/CenterContainer"]
+custom_minimum_size = Vector2(380, 0)
+layout_mode = 2
+
+[node name="VBox" type="VBoxContainer" parent="LobbyUI/CenterContainer/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="LobbyUI/CenterContainer/Panel/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "CS 2D — Multiplayer ENet (UDP)"
+horizontal_alignment = 1
+
+[node name="NameLabel" type="Label" parent="LobbyUI/CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "Seu Nome:"
+
+[node name="NameInput" type="LineEdit" parent="LobbyUI/CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "Jogador"
+
+[node name="IpLabel" type="Label" parent="LobbyUI/CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "IP do Servidor (para Entrar):"
+
+[node name="IpInput" type="LineEdit" parent="LobbyUI/CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "127.0.0.1"
+
+[node name="PortLabel" type="Label" parent="LobbyUI/CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "Porta UDP:"
+
+[node name="PortInput" type="LineEdit" parent="LobbyUI/CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "7777"
+
+[node name="BotsCheck" type="CheckBox" parent="LobbyUI/CenterContainer/Panel/VBox"]
+layout_mode = 2
+button_pressed = true
+text = "Incluir 2 oponentes Bots na arena"
+
+[node name="ButtonsRow" type="HBoxContainer" parent="LobbyUI/CenterContainer/Panel/VBox"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="HostBtn" type="Button" parent="LobbyUI/CenterContainer/Panel/VBox/ButtonsRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Criar Sala (Host)"
+
+[node name="JoinBtn" type="Button" parent="LobbyUI/CenterContainer/Panel/VBox/ButtonsRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Entrar (Cliente)"
+
+[node name="StatusLabel" type="Label" parent="LobbyUI/CenterContainer/Panel/VBox"]
+layout_mode = 2
+text = "Pronto. Use 127.0.0.1 para testar 2 janelas no mesmo PC."
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="HudUI" type="CanvasLayer" parent="."]
+visible = false
+
+[node name="TopBar" type="PanelContainer" parent="HudUI"]
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 16.0
+offset_top = 10.0
+offset_right = -16.0
+offset_bottom = 52.0
+grow_horizontal = 2
+
+[node name="HBox" type="HBoxContainer" parent="HudUI/TopBar"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="HpLabel" type="Label" parent="HudUI/TopBar/HBox"]
+layout_mode = 2
+text = "HP: 100"
+
+[node name="AmmoLabel" type="Label" parent="HudUI/TopBar/HBox"]
+layout_mode = 2
+text = "Munição: 15/15"
+
+[node name="RoundLabel" type="Label" parent="HudUI/TopBar/HBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Round 1"
+horizontal_alignment = 1
+
+[node name="RestartBtn" type="Button" parent="HudUI/TopBar/HBox"]
+layout_mode = 2
+text = "Reiniciar Round"
+
+[node name="LeaveBtn" type="Button" parent="HudUI/TopBar/HBox"]
+layout_mode = 2
+text = "Sair"
+
+[node name="ControlsHint" type="Label" parent="HudUI"]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -28.0
+offset_bottom = -6.0
+grow_horizontal = 2
+grow_vertical = 0
+text = "WASD: mover  |  Mouse: visão com sombras 2D  |  Botão Esq: atirar  |  R: recarregar"
+horizontal_alignment = 1
+
+[node name="BannerLabel" type="Label" parent="HudUI"]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = -24.0
+offset_right = 220.0
+offset_bottom = 24.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 22
+text = "Round 1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[connection signal="pressed" from="LobbyUI/CenterContainer/Panel/VBox/ButtonsRow/HostBtn" to="." method="_on_host_pressed"]
+[connection signal="pressed" from="LobbyUI/CenterContainer/Panel/VBox/ButtonsRow/JoinBtn" to="." method="_on_join_pressed"]
+[connection signal="pressed" from="HudUI/TopBar/HBox/RestartBtn" to="." method="_on_restart_pressed"]
+[connection signal="pressed" from="HudUI/TopBar/HBox/LeaveBtn" to="." method="_on_leave_pressed"]

@@ -11,8 +11,9 @@ venv/
 *.o
 *.pdb
 
-# IDEs / OS
+# IDEs / OS / Engines
 .vscode/
 .idea/
+.godot/
 Thumbs.db
 .DS_Store
