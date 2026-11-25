@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# C++ / Build outputs
+*.exe
+*.obj
+*.o
+*.pdb
+
+# IDEs / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
