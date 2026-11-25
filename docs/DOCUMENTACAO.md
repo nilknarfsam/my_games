@@ -32,7 +32,9 @@ my_games/
 │   ├── ROADMAP.md
 │   ├── vite.config.js
 │   ├── src/
+│   │   ├── ai_worker.js
 │   │   ├── main.js
+│   │   ├── openings.js
 │   │   ├── piece_meshes.js
 │   │   ├── sound.js
 │   │   ├── style.css
@@ -174,9 +176,9 @@ my_games/
 - **Recursos:** tabuleiro `10×20` em 3D com blocos chanfrados (`RoundedBoxGeometry`), sombras suaves, câmera orbital interativa + 3 presets (`3D Clássica`, `Frontal`, `Dinâmica`), sorteio *7-bag*, *wall-kick*, *lock delay*, peça fantasma (*ghost*), *hold*, partículas na limpeza de linhas, recorde em `localStorage` e áudio procedural via Web Audio API.
 
 ### 5.2 Xadrez 3D (`jogo_xadrez_3d/`)
-- **Atalho direto:** `jogar_xadrez_3d.bat` (na raiz do repositório).
-- **Arquivos principais:** `src/chess_engine.js` (`ChessEngine`, `chooseAIMove`), `src/chess_engine.test.js`, `src/piece_meshes.js`, `src/main.js`, `src/sound.js`, `index.html`, `src/style.css`, `ROADMAP.md`.
-- **Recursos:** peças Staunton esculpidas em 3D (`LatheGeometry` e `ExtrudeGeometry`), regras oficiais completas (roque curto/longo com animação simultânea Rei+Torre, *en passant*, promoção de peão, xeque, xeque-mate, afogamento, repetição tripla, regra dos 50 lances e material insuficiente), roque intuitivo (Rei→casa, Rei→Torre, Torre→Rei ou botões contextuais na HUD), relógio (`Sem Limite`, `Blitz 5 min`, `Rápido 10 min`), barra de avaliação, dica de jogada (`H`), modo **Contra IA** (3 dificuldades) e **2 Jogadores (Local)**, histórico em notação algébrica (`SAN`) e Desfazer (`U`).
+- **Atalho direto:** `launcher/jogar_xadrez_3d.bat` (ou `npm run dev` dentro da pasta).
+- **Arquivos principais:** `src/chess_engine.js` (`ChessEngine`, `chooseAIMove`), `src/openings.js`, `src/ai_worker.js`, `src/chess_engine.test.js`, `src/piece_meshes.js`, `src/main.js`, `src/sound.js`, `index.html`, `src/style.css`, `ROADMAP.md`.
+- **Recursos:** peças Staunton esculpidas em 3D (`LatheGeometry` e `ExtrudeGeometry`), regras oficiais completas (roque curto/longo com animação simultânea Rei+Torre, *en passant*, promoção de peão, xeque, xeque-mate, afogamento, repetição tripla, regra dos 50 lances e material insuficiente), roque intuitivo (Rei→casa, Rei→Torre, Torre→Rei ou botões contextuais na HUD), **IA em Web Worker com Livro de Aberturas, Quiescence Search e Zobrist Transposition Table**, relógio com incremento Fischer (`3+2`, `5+3`, `5 min`, `10 min`), barra de avaliação, dica de jogada (`H`), auto-save e placar `V · E · D` em `localStorage`, modo **Contra IA** (3 dificuldades) e **2 Jogadores (Local)**, histórico em notação algébrica (`SAN`) e Desfazer (`U`).
 
 ---
 

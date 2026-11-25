@@ -1,3 +1,5 @@
+import { pickBookMove } from './openings.js';
+
 export const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 export const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'];
 
@@ -705,36 +707,132 @@ export class ChessEngine {
     }
     return score;
   }
+
+  /**
+   * Exporta os lances da partida como lista compacta para Web Worker e auto-save.
+   */
+  exportMoves() {
+    return this.moveLog.map((rec) => ({
+      fromR: rec.move.fromR,
+      fromC: rec.move.fromC,
+      toR: rec.move.toR,
+      toC: rec.move.toC,
+      promotion: rec.move.promotion ?? 'q',
+    }));
+  }
+
+  /**
+   * Reconstrói um ChessEngine completo a partir de uma lista de lances.
+   */
+  static fromMoves(moves = []) {
+    const eng = new ChessEngine();
+    for (const m of moves) {
+      const ok = eng.makeMove(m.fromR, m.fromC, m.toR, m.toC, m.promotion ?? 'q');
+      if (!ok) break;
+    }
+    return eng;
+  }
 }
 
-function orderMoves(engine, moves) {
+// --- Zobrist Hashing & Transposition Table ---
+const ZOBRIST_PIECE_INDEX = {
+  wp: 0, wn: 1, wb: 2, wr: 3, wq: 4, wk: 5,
+  bp: 6, bn: 7, bb: 8, br: 9, bq: 10, bk: 11,
+};
+
+function createZobristTables() {
+  let seed = 0x9e3779b9;
+  const nextRand32 = () => {
+    seed ^= seed << 13;
+    seed ^= seed >>> 17;
+    seed ^= seed << 5;
+    return seed >>> 0;
+  };
+  const pieces = Array.from({ length: 12 }, () =>
+    Array.from({ length: 64 }, () => [nextRand32(), nextRand32()]),
+  );
+  const turn = [nextRand32(), nextRand32()];
+  const castling = Array.from({ length: 16 }, () => [nextRand32(), nextRand32()]);
+  const epFile = Array.from({ length: 8 }, () => [nextRand32(), nextRand32()]);
+  return { pieces, turn, castling, epFile };
+}
+
+const ZOBRIST = createZobristTables();
+
+export function computeZobristKey(engine) {
+  let h1 = 0;
+  let h2 = 0;
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const p = engine.board[r][c];
+      if (!p) continue;
+      const pIdx = ZOBRIST_PIECE_INDEX[`${p.color}${p.type}`];
+      const sq = r * 8 + c;
+      h1 ^= ZOBRIST.pieces[pIdx][sq][0];
+      h2 ^= ZOBRIST.pieces[pIdx][sq][1];
+    }
+  }
+  if (engine.turn === 'b') {
+    h1 ^= ZOBRIST.turn[0];
+    h2 ^= ZOBRIST.turn[1];
+  }
+  const cMask =
+    (engine.castling.wK ? 1 : 0) |
+    (engine.castling.wQ ? 2 : 0) |
+    (engine.castling.bK ? 4 : 0) |
+    (engine.castling.bQ ? 8 : 0);
+  h1 ^= ZOBRIST.castling[cMask][0];
+  h2 ^= ZOBRIST.castling[cMask][1];
+  if (engine.enPassant) {
+    h1 ^= ZOBRIST.epFile[engine.enPassant.c][0];
+    h2 ^= ZOBRIST.epFile[engine.enPassant.c][1];
+  }
+  return `${h1 >>> 0}_${h2 >>> 0}`;
+}
+
+function moveKey(m) {
+  return `${m.fromR}${m.fromC}${m.toR}${m.toC}${m.promotion ?? ''}`;
+}
+
+function orderMoves(engine, moves, ttBestKey = null) {
   return [...moves].sort((a, b) => {
+    if (ttBestKey) {
+      const ka = moveKey(a) === ttBestKey;
+      const kb = moveKey(b) === ttBestKey;
+      if (ka !== kb) return kb ? 1 : -1;
+    }
     const scoreA = (a.capture ? 10 : 0) + (a.promotion ? 8 : 0) + (a.castle ? 3 : 0);
     const scoreB = (b.capture ? 10 : 0) + (b.promotion ? 8 : 0) + (b.castle ? 3 : 0);
     if (scoreB !== scoreA) return scoreB - scoreA;
     const targetA = engine.board[a.toR][a.toC];
     const targetB = engine.board[b.toR][b.toC];
-    return (targetB ? PIECE_VALUES[targetB.type] : 0) - (targetA ? PIECE_VALUES[targetA.type] : 0);
+    const attackerA = engine.board[a.fromR][a.fromC];
+    const attackerB = engine.board[b.fromR][b.fromC];
+    const mvvLvaA = (targetA ? PIECE_VALUES[targetA.type] * 10 : 0) - (attackerA ? PIECE_VALUES[attackerA.type] : 0);
+    const mvvLvaB = (targetB ? PIECE_VALUES[targetB.type] * 10 : 0) - (attackerB ? PIECE_VALUES[attackerB.type] : 0);
+    return mvvLvaB - mvvLvaA;
   });
 }
 
-function minimax(engine, depth, alpha, beta, maximizingWhite) {
-  if (depth === 0 || engine.isGameOver()) {
-    const evalScore = engine.evaluateBoard();
-    // Prefer quicker checkmates
-    if (evalScore > 90000) return evalScore + depth;
-    if (evalScore < -90000) return evalScore - depth;
-    return evalScore;
+function quiescence(engine, alpha, beta, maximizingWhite, qDepth) {
+  const standPat = engine.evaluateBoard();
+  if (qDepth <= 0 || engine.isGameOver()) {
+    return standPat;
   }
 
-  const moves = orderMoves(engine, engine.getAllLegalMoves(engine.turn));
-  if (moves.length === 0) return engine.evaluateBoard();
+  const tacticalMoves = orderMoves(
+    engine,
+    engine.getAllLegalMoves(engine.turn).filter((m) => m.capture || m.promotion),
+  );
 
   if (maximizingWhite) {
-    let best = -Infinity;
-    for (const m of moves) {
+    let best = standPat;
+    if (best >= beta) return best;
+    if (best > alpha) alpha = best;
+
+    for (const m of tacticalMoves) {
       engine.makeMove(m.fromR, m.fromC, m.toR, m.toC, m.promotion ?? 'q');
-      const val = minimax(engine, depth - 1, alpha, beta, false);
+      const val = quiescence(engine, alpha, beta, false, qDepth - 1);
       engine.undo();
       if (val > best) best = val;
       if (val > alpha) alpha = val;
@@ -743,10 +841,13 @@ function minimax(engine, depth, alpha, beta, maximizingWhite) {
     return best;
   }
 
-  let best = Infinity;
-  for (const m of moves) {
+  let best = standPat;
+  if (best <= alpha) return best;
+  if (best < beta) beta = best;
+
+  for (const m of tacticalMoves) {
     engine.makeMove(m.fromR, m.fromC, m.toR, m.toC, m.promotion ?? 'q');
-    const val = minimax(engine, depth - 1, alpha, beta, true);
+    const val = quiescence(engine, alpha, beta, true, qDepth - 1);
     engine.undo();
     if (val < best) best = val;
     if (val < beta) beta = val;
@@ -755,22 +856,99 @@ function minimax(engine, depth, alpha, beta, maximizingWhite) {
   return best;
 }
 
+const MAX_TT_ENTRIES = 80000;
+
+function minimax(engine, depth, alpha, beta, maximizingWhite, qDepth, tt) {
+  if (engine.isGameOver()) {
+    const evalScore = engine.evaluateBoard();
+    if (evalScore > 90000) return evalScore + depth;
+    if (evalScore < -90000) return evalScore - depth;
+    return evalScore;
+  }
+
+  if (depth === 0) {
+    return qDepth > 0
+      ? quiescence(engine, alpha, beta, maximizingWhite, qDepth)
+      : engine.evaluateBoard();
+  }
+
+  const origAlpha = alpha;
+  const origBeta = beta;
+  const zKey = computeZobristKey(engine);
+  const ttEntry = tt.get(zKey);
+
+  if (ttEntry && ttEntry.depth >= depth) {
+    if (ttEntry.flag === 'EXACT') return ttEntry.score;
+    if (ttEntry.flag === 'LOWER' && ttEntry.score > alpha) alpha = ttEntry.score;
+    else if (ttEntry.flag === 'UPPER' && ttEntry.score < beta) beta = ttEntry.score;
+    if (alpha >= beta) return ttEntry.score;
+  }
+
+  const moves = orderMoves(engine, engine.getAllLegalMoves(engine.turn), ttEntry?.bestMoveKey ?? null);
+  if (moves.length === 0) return engine.evaluateBoard();
+
+  let bestMoveKey = null;
+  let best = maximizingWhite ? -Infinity : Infinity;
+
+  if (maximizingWhite) {
+    for (const m of moves) {
+      engine.makeMove(m.fromR, m.fromC, m.toR, m.toC, m.promotion ?? 'q');
+      const val = minimax(engine, depth - 1, alpha, beta, false, qDepth, tt);
+      engine.undo();
+      if (val > best) {
+        best = val;
+        bestMoveKey = moveKey(m);
+      }
+      if (val > alpha) alpha = val;
+      if (beta <= alpha) break;
+    }
+  } else {
+    for (const m of moves) {
+      engine.makeMove(m.fromR, m.fromC, m.toR, m.toC, m.promotion ?? 'q');
+      const val = minimax(engine, depth - 1, alpha, beta, true, qDepth, tt);
+      engine.undo();
+      if (val < best) {
+        best = val;
+        bestMoveKey = moveKey(m);
+      }
+      if (val < beta) beta = val;
+      if (beta <= alpha) break;
+    }
+  }
+
+  if (tt.size >= MAX_TT_ENTRIES) {
+    tt.clear();
+  }
+  const flag = best <= origAlpha ? 'UPPER' : best >= origBeta ? 'LOWER' : 'EXACT';
+  tt.set(zKey, { depth, score: best, flag, bestMoveKey });
+
+  return best;
+}
+
 /**
- * Escolhe o melhor lance para o lado atual usando Minimax + Alpha-Beta.
+ * Escolhe o melhor lance para o lado atual usando Livro de Aberturas + Minimax Alpha-Beta + Quiescence + Transposition Table.
  * @param {ChessEngine} engine
  * @param {'easy'|'medium'|'hard'} difficulty
  */
-export function chooseAIMove(engine, difficulty = 'medium', rng = Math.random) {
+export function chooseAIMove(engine, difficulty = 'medium', rng = Math.random, options = {}) {
+  const useBook = options.useBook ?? difficulty !== 'easy';
+  if (useBook) {
+    const bookMove = pickBookMove(engine, rng);
+    if (bookMove) return bookMove;
+  }
+
   const moves = orderMoves(engine, engine.getAllLegalMoves(engine.turn));
   if (moves.length === 0) return null;
 
   const depth = difficulty === 'easy' ? 1 : difficulty === 'hard' ? 3 : 2;
+  const qDepth = difficulty === 'easy' ? 0 : difficulty === 'hard' ? 4 : 2;
+  const tt = new Map();
   const maximizing = engine.turn === 'w';
   const scored = [];
 
   for (const m of moves) {
     engine.makeMove(m.fromR, m.fromC, m.toR, m.toC, m.promotion ?? 'q');
-    const score = minimax(engine, depth - 1, -Infinity, Infinity, !maximizing);
+    const score = minimax(engine, depth - 1, -Infinity, Infinity, !maximizing, qDepth, tt);
     engine.undo();
     scored.push({ move: m, score });
   }

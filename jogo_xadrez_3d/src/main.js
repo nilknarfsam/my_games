@@ -3,21 +3,27 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import './style.css';
 import { ChessEngine, chooseAIMove, FILES, RANKS } from './chess_engine.js';
+import { identifyOpening } from './openings.js';
 import { createChessPieceMesh } from './piece_meshes.js';
 import { ChessSound } from './sound.js';
+
+const SAVE_KEY = 'xadrez_3d_autosave_v1';
+const STATS_KEY = 'xadrez_3d_stats_v1';
 
 const PIECE_UNICODE = {
   w: { k: '♔', q: '♕', r: '♖', b: '♗', n: '♘', p: '♙' },
   b: { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' },
 };
 
-const engine = new ChessEngine();
+let engine = new ChessEngine();
 const sound = new ChessSound();
 
 // State
 let gameMode = 'ai-b';
 let aiDifficulty = 'medium';
-let timeControlSec = 0;
+let timeControlVal = '0|0';
+let timeBaseSec = 0;
+let timeIncSec = 0;
 let clocks = { w: 0, b: 0 };
 let timeoutWinner = null;
 let selectedSquare = null;
@@ -25,8 +31,30 @@ let legalMovesForSelected = [];
 let hintMove = null;
 let pendingPromotion = null;
 let aiTimeout = null;
+let aiRequestId = 0;
+let aiThinking = false;
 let cameraSide = 'w';
 let activeAnimations = [];
+let gameStatsRecorded = false;
+let stats = loadStats();
+
+// Web Worker for non-blocking AI search
+const aiWorker =
+  typeof Worker !== 'undefined'
+    ? new Worker(new URL('./ai_worker.js', import.meta.url), { type: 'module' })
+    : null;
+const pendingWorkerCallbacks = new Map();
+
+if (aiWorker) {
+  aiWorker.onmessage = (event) => {
+    const { requestId, move } = event.data;
+    const cb = pendingWorkerCallbacks.get(requestId);
+    if (cb) {
+      pendingWorkerCallbacks.delete(requestId);
+      cb(move);
+    }
+  };
+}
 
 // --- DOM Elements ---
 const canvasEl = document.getElementById('scene');
@@ -34,7 +62,9 @@ const turnDot = document.getElementById('turn-dot');
 const turnText = document.getElementById('turn-text');
 const evalLabel = document.getElementById('eval-label');
 const evalFill = document.getElementById('eval-fill');
+const openingText = document.getElementById('opening-text');
 const statusText = document.getElementById('status-text');
+const statsText = document.getElementById('stats-text');
 const clocksPanel = document.getElementById('clocks-panel');
 const clockWhiteBox = document.getElementById('clock-white-box');
 const clockBlackBox = document.getElementById('clock-black-box');
@@ -60,6 +90,103 @@ const gameOverModal = document.getElementById('gameover-modal');
 const gameOverTitle = document.getElementById('gameover-title');
 const gameOverSubtitle = document.getElementById('gameover-subtitle');
 const btnGameOverNew = document.getElementById('btn-gameover-new');
+
+// --- Persistence & Stats ---
+function parseTimeControl(value) {
+  const [b, inc] = String(value || '0|0').split('|').map(Number);
+  return { baseSec: Number.isFinite(b) ? b : 0, incSec: Number.isFinite(inc) ? inc : 0 };
+}
+
+function loadStats() {
+  try {
+    const raw = localStorage.getItem(STATS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        wins: Number(parsed.wins) || 0,
+        draws: Number(parsed.draws) || 0,
+        losses: Number(parsed.losses) || 0,
+      };
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  return { wins: 0, draws: 0, losses: 0 };
+}
+
+function saveStats() {
+  try {
+    localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function recordResultIfNeeded() {
+  if (gameStatsRecorded || gameMode === 'pvp' || !isAnyGameOver()) return;
+  gameStatsRecorded = true;
+  const humanColor = gameMode === 'ai-b' ? 'w' : 'b';
+  const winner = timeoutWinner ?? engine.winner;
+  if (!winner) {
+    stats.draws += 1;
+  } else if (winner === humanColor) {
+    stats.wins += 1;
+  } else {
+    stats.losses += 1;
+  }
+  saveStats();
+}
+
+function saveGameState() {
+  try {
+    localStorage.setItem(
+      SAVE_KEY,
+      JSON.stringify({
+        gameMode,
+        aiDifficulty,
+        timeControlVal,
+        clocks,
+        timeoutWinner,
+        moves: engine.exportMoves(),
+      }),
+    );
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+function tryRestoreSavedGame() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const saved = JSON.parse(raw);
+    if (!saved || !Array.isArray(saved.moves)) return false;
+
+    gameMode = ['ai-b', 'ai-w', 'pvp'].includes(saved.gameMode) ? saved.gameMode : 'ai-b';
+    aiDifficulty = ['easy', 'medium', 'hard'].includes(saved.aiDifficulty)
+      ? saved.aiDifficulty
+      : 'medium';
+    timeControlVal = typeof saved.timeControlVal === 'string' ? saved.timeControlVal : '0|0';
+    const parsedTc = parseTimeControl(timeControlVal);
+    timeBaseSec = parsedTc.baseSec;
+    timeIncSec = parsedTc.incSec;
+
+    modeSelect.value = gameMode;
+    difficultySelect.value = aiDifficulty;
+    timeSelect.value = timeControlVal;
+
+    engine = ChessEngine.fromMoves(saved.moves);
+    clocks =
+      saved.clocks && Number.isFinite(saved.clocks.w) && Number.isFinite(saved.clocks.b)
+        ? { w: saved.clocks.w, b: saved.clocks.b }
+        : { w: timeBaseSec, b: timeBaseSec };
+    timeoutWinner = saved.timeoutWinner ?? null;
+    gameStatsRecorded = isAnyGameOver();
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 // --- Three.js Setup ---
 const renderer = new THREE.WebGLRenderer({
@@ -304,7 +431,6 @@ function updateBoardHighlights() {
 
   for (const move of legalMovesForSelected) {
     if (move.castle) {
-      // Golden highlight on castling destination AND on the participating rook
       spawnRingMarker(move.toR, move.toC, 0xfbbf24, 0.2, 0.42, { castleMove: move });
       const rookCol = move.castle === 'K' ? 7 : 0;
       spawnRingMarker(move.toR, rookCol, 0xfbbf24, 0.34, 0.45, { castleMove: move });
@@ -330,7 +456,6 @@ function updateBoardHighlights() {
     indicatorMeshes.push(marker);
   }
 
-  // If user selected a Rook and castling with that Rook is available, mark the King with a golden ring!
   if (selectedSquare) {
     const selPiece = engine.board[selectedSquare.r][selectedSquare.c];
     if (selPiece?.type === 'r') {
@@ -357,7 +482,7 @@ function isAnyGameOver() {
 }
 
 function updateClocksUI() {
-  if (timeControlSec <= 0) {
+  if (timeBaseSec <= 0) {
     clocksPanel.classList.add('hidden');
     return;
   }
@@ -393,6 +518,10 @@ function updateHUD() {
   updateEvaluationBar();
   updateClocksUI();
 
+  openingText.textContent = identifyOpening(engine.moveLog);
+  statsText.textContent = `Placar vs IA — V: ${stats.wins} · E: ${stats.draws} · D: ${stats.losses}`;
+  statsText.style.display = gameMode === 'pvp' ? 'none' : 'block';
+
   statusText.className = 'status-sub';
   if (timeoutWinner) {
     statusText.textContent = `Tempo esgotado! Vitória das ${timeoutWinner === 'w' ? 'Brancas' : 'Pretas'}.`;
@@ -411,14 +540,13 @@ function updateHUD() {
   } else if (engine.status === 'check') {
     statusText.textContent = `XEQUE nas ${isWhiteTurn ? 'Brancas' : 'Pretas'}!`;
     statusText.classList.add('check');
-  } else if (isAITurn()) {
-    statusText.textContent = 'IA pensando no melhor lance...';
+  } else if (aiThinking || isAITurn()) {
+    statusText.textContent = 'IA calculando em segundo plano...';
   } else {
     statusText.textContent = selectedSquare ? 'Escolha a casa de destino' : 'Selecione uma peça para jogar';
   }
 
-  // Contextual castling buttons
-  const canHumanAct = !isAnyGameOver() && !isAITurn() && activeAnimations.length === 0;
+  const canHumanAct = !isAnyGameOver() && !isAITurn() && !aiThinking && activeAnimations.length === 0;
   const castles = canHumanAct ? engine.getAvailableCastles(engine.turn) : { kingSide: null, queenSide: null };
   btnCastleK.classList.toggle('hidden', !castles.kingSide);
   btnCastleQ.classList.toggle('hidden', !castles.queenSide);
@@ -449,6 +577,8 @@ function updateHUD() {
   difficultyField.style.display = gameMode === 'pvp' ? 'none' : 'flex';
 
   if (isAnyGameOver()) {
+    recordResultIfNeeded();
+    statsText.textContent = `Placar vs IA — V: ${stats.wins} · E: ${stats.draws} · D: ${stats.losses}`;
     if (timeoutWinner) {
       gameOverTitle.textContent = 'Tempo Esgotado!';
       gameOverSubtitle.textContent = `As ${timeoutWinner === 'w' ? 'Brancas' : 'Pretas'} venceram no relógio!`;
@@ -503,6 +633,10 @@ function performMoveWithAnimation(fromR, fromC, toR, toC, promotion = 'q') {
   const record = engine.makeMove(fromR, fromC, toR, toC, promotion);
   if (!record) return false;
 
+  if (timeBaseSec > 0 && timeIncSec > 0 && engine.moveLog.length > 1) {
+    clocks[record.piece.color] += timeIncSec;
+  }
+
   selectedSquare = null;
   legalMovesForSelected = [];
   hintMove = null;
@@ -520,15 +654,13 @@ function performMoveWithAnimation(fromR, fromC, toR, toC, promotion = 'q') {
   }
 
   const skipSquares = [{ r: toR, c: toC }];
-  if (record.move.castle === 'K') {
-    skipSquares.push({ r: toR, c: 5 });
-  } else if (record.move.castle === 'Q') {
-    skipSquares.push({ r: toR, c: 3 });
-  }
+  if (record.move.castle === 'K') skipSquares.push({ r: toR, c: 5 });
+  else if (record.move.castle === 'Q') skipSquares.push({ r: toR, c: 3 });
 
   rebuildPieceMeshes(skipSquares);
   updateBoardHighlights();
   updateHUD();
+  saveGameState();
 
   if (movingMesh) {
     enqueuePieceAnimation(record.piece.type, record.piece.color, fromR, fromC, toR, toC, 0.45);
@@ -544,19 +676,60 @@ function performMoveWithAnimation(fromR, fromC, toR, toC, promotion = 'q') {
   return true;
 }
 
+function requestAIMoveAsync(difficulty, useBook, callback) {
+  const reqId = ++aiRequestId;
+  aiThinking = true;
+  updateHUD();
+
+  if (aiWorker) {
+    pendingWorkerCallbacks.set(reqId, (move) => {
+      if (reqId !== aiRequestId) return;
+      aiThinking = false;
+      callback(move);
+    });
+    aiWorker.postMessage({
+      requestId: reqId,
+      moves: engine.exportMoves(),
+      difficulty,
+      useBook,
+    });
+    return;
+  }
+
+  const move = chooseAIMove(engine, difficulty, Math.random, { useBook });
+  if (reqId === aiRequestId) {
+    aiThinking = false;
+    callback(move);
+  }
+}
+
+function cancelPendingAI() {
+  clearTimeout(aiTimeout);
+  aiRequestId++;
+  aiThinking = false;
+  pendingWorkerCallbacks.clear();
+}
+
 function scheduleAIIfNeeded() {
   clearTimeout(aiTimeout);
-  if (!isAITurn() || isAnyGameOver()) {
+  if (!isAITurn() || isAnyGameOver() || aiThinking) {
     return;
   }
   updateHUD();
   aiTimeout = setTimeout(() => {
-    if (isAnyGameOver()) return;
-    const move = chooseAIMove(engine, aiDifficulty);
-    if (move) {
-      performMoveWithAnimation(move.fromR, move.fromC, move.toR, move.toC, move.promotion ?? 'q');
-    }
-  }, 240);
+    if (!isAITurn() || isAnyGameOver()) return;
+    requestAIMoveAsync(aiDifficulty, aiDifficulty !== 'easy', (move) => {
+      if (isAnyGameOver() || !isAITurn()) {
+        updateHUD();
+        return;
+      }
+      if (move) {
+        performMoveWithAnimation(move.fromR, move.fromC, move.toR, move.toC, move.promotion ?? 'q');
+      } else {
+        updateHUD();
+      }
+    });
+  }, 140);
 }
 
 // --- Mouse Raycasting ---
@@ -573,7 +746,9 @@ canvasEl.addEventListener('pointerup', (e) => {
   const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
   pointerDownPos = null;
   if (dist > 6) return;
-  if (activeAnimations.length > 0 || pendingPromotion || isAITurn() || isAnyGameOver()) return;
+  if (activeAnimations.length > 0 || pendingPromotion || isAITurn() || aiThinking || isAnyGameOver()) {
+    return;
+  }
 
   const rect = canvasEl.getBoundingClientRect();
   pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -616,7 +791,6 @@ function handleSquareClick(r, c) {
     const selPiece = engine.board[selectedSquare.r][selectedSquare.c];
     const clickedPiece = engine.board[r][c];
 
-    // Intuitive castling: King -> Rook OR Rook -> King
     if (selPiece && clickedPiece && selPiece.color === clickedPiece.color) {
       const castles = engine.getAvailableCastles(selPiece.color);
       const homeRow = selPiece.color === 'w' ? 7 : 0;
@@ -698,11 +872,15 @@ function clearAnimations() {
 }
 
 function startNewGame() {
-  clearTimeout(aiTimeout);
+  cancelPendingAI();
   clearAnimations();
   engine.reset();
   timeoutWinner = null;
-  clocks = { w: timeControlSec, b: timeControlSec };
+  gameStatsRecorded = false;
+  const parsed = parseTimeControl(timeControlVal);
+  timeBaseSec = parsed.baseSec;
+  timeIncSec = parsed.incSec;
+  clocks = { w: timeBaseSec, b: timeBaseSec };
   selectedSquare = null;
   legalMovesForSelected = [];
   hintMove = null;
@@ -712,12 +890,13 @@ function startNewGame() {
   rebuildPieceMeshes();
   updateBoardHighlights();
   updateHUD();
+  saveGameState();
   scheduleAIIfNeeded();
 }
 
 function undoMove() {
   if (activeAnimations.length > 0 || engine.history.length === 0) return;
-  clearTimeout(aiTimeout);
+  cancelPendingAI();
   timeoutWinner = null;
   if (gameMode !== 'pvp') {
     engine.undo();
@@ -733,19 +912,22 @@ function undoMove() {
   rebuildPieceMeshes();
   updateBoardHighlights();
   updateHUD();
+  saveGameState();
 }
 
 function triggerHint() {
-  if (isAnyGameOver() || isAITurn() || activeAnimations.length > 0) return;
-  const best = chooseAIMove(engine, 'medium');
-  if (best) {
-    hintMove = best;
-    updateBoardHighlights();
-  }
+  if (isAnyGameOver() || isAITurn() || aiThinking || activeAnimations.length > 0) return;
+  requestAIMoveAsync('medium', true, (best) => {
+    if (best && !isAITurn() && !isAnyGameOver()) {
+      hintMove = best;
+      updateBoardHighlights();
+    }
+    updateHUD();
+  });
 }
 
 function executeCastleButton(side) {
-  if (isAnyGameOver() || isAITurn() || activeAnimations.length > 0) return;
+  if (isAnyGameOver() || isAITurn() || aiThinking || activeAnimations.length > 0) return;
   const castles = engine.getAvailableCastles(engine.turn);
   const move = side === 'K' ? castles.kingSide : castles.queenSide;
   if (move) {
@@ -760,10 +942,11 @@ modeSelect.addEventListener('change', () => {
 
 difficultySelect.addEventListener('change', () => {
   aiDifficulty = difficultySelect.value;
+  saveGameState();
 });
 
 timeSelect.addEventListener('change', () => {
-  timeControlSec = Number(timeSelect.value);
+  timeControlVal = timeSelect.value;
   startNewGame();
 });
 
@@ -797,8 +980,16 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// --- Main Render Loop ---
-startNewGame();
+// --- Initialization (Restore saved match or start fresh) ---
+if (tryRestoreSavedGame()) {
+  setCameraSide(gameMode === 'ai-w' ? 'b' : 'w');
+  rebuildPieceMeshes();
+  updateBoardHighlights();
+  updateHUD();
+  scheduleAIIfNeeded();
+} else {
+  startNewGame();
+}
 
 let lastTime = performance.now();
 function animate(now) {
@@ -806,13 +997,14 @@ function animate(now) {
   const dtSec = Math.min(0.1, (now - lastTime) / 1000);
   lastTime = now;
 
-  // Update chess clock when game is active and moves have started
-  if (timeControlSec > 0 && !isAnyGameOver() && engine.moveLog.length > 0 && !pendingPromotion) {
+  if (timeBaseSec > 0 && !isAnyGameOver() && engine.moveLog.length > 0 && !pendingPromotion) {
     clocks[engine.turn] = Math.max(0, clocks[engine.turn] - dtSec);
     if (clocks[engine.turn] <= 0) {
       timeoutWinner = engine.turn === 'w' ? 'b' : 'w';
+      cancelPendingAI();
       sound.gameOver();
       updateHUD();
+      saveGameState();
     } else {
       updateClocksUI();
     }
