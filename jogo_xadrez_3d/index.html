@@ -27,7 +27,9 @@
           <div class="eval-bar" title="Avaliação da posição (Brancas vs Pretas)">
             <div id="eval-fill" class="eval-fill" style="width: 50%"></div>
           </div>
+          <p id="opening-text" class="opening-sub">Posição Inicial</p>
           <p id="status-text" class="status-sub">Selecione uma peça para jogar</p>
+          <p id="stats-text" class="stats-sub">Placar vs IA — V: 0 · E: 0 · D: 0</p>
         </div>
 
         <div class="panel clocks-panel" id="clocks-panel">
@@ -62,9 +64,11 @@
             <label class="field">
               <span class="label">Relógio</span>
               <select id="time-select">
-                <option value="0" selected>Sem Limite</option>
-                <option value="300">Blitz 5 min</option>
-                <option value="600">Rápido 10 min</option>
+                <option value="0|0" selected>Sem Limite</option>
+                <option value="180|2">Blitz 3+2</option>
+                <option value="300|0">Blitz 5 min</option>
+                <option value="300|3">Blitz 5+3</option>
+                <option value="600|0">Rápido 10 min</option>
               </select>
             </label>
           </div>

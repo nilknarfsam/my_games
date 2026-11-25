@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ChessEngine, chooseAIMove } from './chess_engine.js';
+import { ChessEngine, chooseAIMove, computeZobristKey } from './chess_engine.js';
+import { identifyOpening, pickBookMove } from './openings.js';
 
 test('initializes standard 32 pieces and 20 opening moves for white', () => {
   const engine = new ChessEngine();
@@ -126,4 +127,53 @@ test('detects threefold repetition draw and undo restores status', () => {
   assert.equal(engine.undo(), true);
   assert.equal(engine.status, 'playing');
   assert.equal(engine.isGameOver(), false);
+});
+
+test('identifies opening names and picks valid opening book moves', () => {
+  const engine = new ChessEngine();
+  assert.equal(identifyOpening(engine.moveLog), 'Posição Inicial');
+
+  assert.ok(engine.makeMove(6, 4, 4, 4)); // e4
+  assert.ok(engine.makeMove(1, 4, 3, 4)); // e5
+  assert.ok(engine.makeMove(7, 6, 5, 5)); // Nf3
+  assert.ok(engine.makeMove(0, 1, 2, 2)); // Nc6
+  assert.ok(engine.makeMove(7, 5, 3, 1)); // Bb5
+  assert.equal(identifyOpening(engine.moveLog), 'Abertura Espanhola (Ruy Lopez)');
+
+  const reply = pickBookMove(engine, () => 0);
+  assert.ok(reply);
+  const rec = engine.makeMove(reply.fromR, reply.fromC, reply.toR, reply.toC);
+  assert.equal(rec.san, 'a6');
+});
+
+test('exportMoves and fromMoves preserve game state and Zobrist key', () => {
+  const engine = new ChessEngine();
+  assert.ok(engine.makeMove(6, 4, 4, 4)); // e4
+  assert.ok(engine.makeMove(1, 2, 3, 2)); // c5
+  assert.ok(engine.makeMove(7, 6, 5, 5)); // Nf3
+
+  const keyBefore = computeZobristKey(engine);
+  const exported = engine.exportMoves();
+  const restored = ChessEngine.fromMoves(exported);
+
+  assert.equal(restored.moveLog.length, 3);
+  assert.equal(identifyOpening(restored.moveLog), 'Siciliana Aberta');
+  assert.equal(computeZobristKey(restored), keyBefore);
+});
+
+test('quiescence search avoids capturing a defended pawn with the Queen', () => {
+  const engine = new ChessEngine();
+  engine.board = Array.from({ length: 8 }, () => Array(8).fill(null));
+  engine.board[0][4] = { type: 'k', color: 'b' };
+  engine.board[7][4] = { type: 'k', color: 'w' };
+  engine.board[2][3] = { type: 'p', color: 'b' }; // d6 pawn
+  engine.board[1][4] = { type: 'p', color: 'b' }; // e7 pawn defends d6
+  engine.board[5][3] = { type: 'q', color: 'w' }; // White Queen on d3
+  engine.castling = { wK: false, wQ: false, bK: false, bQ: false };
+  engine.turn = 'w';
+
+  const best = chooseAIMove(engine, 'medium', () => 0, { useBook: false });
+  assert.ok(best);
+  // Must NOT play Qxd6 (from 5,3 to 2,3) because pawn on e7 recaptures the Queen
+  assert.equal(best.toR === 2 && best.toC === 3, false);
 });
