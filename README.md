@@ -13,7 +13,9 @@ Local: [`jogo_cs_2d/`](jogo_cs_2d/README.md)
 Um jogo de tiro tático em 2D com visão de cima inspirado em *Counter-Strike*, onde você enfrenta **2 oponentes controlados por IA** em um mapa compacto cheio de paredes e caixas de cobertura.
 
 ### Principais mecânicas
-- **Movimentação tática (`WASD`)**: deslize pelas paredes e use as coberturas do mapa (`760×540`) sem travar nas quinas.
+- **Movimentação tática (`WASD` + `Shift`)**: deslize pelas paredes e use as coberturas do mapa (`940×600`); segure `Shift` para andar mais devagar e **sem emitir passos**, pegando os inimigos de surpresa.
+- **Som e ondas de passos**: seus passos e os dos bots geram áudio procedural e anéis visuais no mapa para caçar os oponentes pelo som.
+- **Bonecos vistos de cima + Menu de Opções (`Esc`)**: soldados detalhados em visão top-down, escolha de dificuldade, 3 armas iniciais, quantidade de oponentes e opções visuais/som.
 - **Visão e mira pelo mouse**: cone de visão 2D recortado em tempo real pelas paredes e caixas, acompanhado por linha de mira laser até o cursor.
 - **Tiro e recarga (`R`)**: pente com **15 balas**, cadência rápida no botão esquerdo do mouse e recarga de `1.25s` com barra de progresso na tela.
 - **2 Oponentes com linha de visão real**: os dois bots patrulham a arena, fazem *strafe* lateral em combate e só atiram quando têm visão direta sua (sem atirar através das paredes).
@@ -27,10 +29,12 @@ Um jogo de tiro tático em 2D com visão de cima inspirado em *Counter-Strike*, 
 | `S` | Mover para trás (baixo) |
 | `A` | Mover para a esquerda |
 | `D` | Mover para a direita |
+| `Segurar Shift` | Andar devagar e silencioso (sem passos) |
 | `Mouse` | Controlar visão e mira 360° |
 | `Botão Esquerdo` | Atirar |
-| `R` | Recarregar pente (`15` balas) |
+| `R` | Recarregar pente |
 | `P` | Pausar / Retomar |
+| `Esc` | Abrir Menu / Opções |
 | `Enter` | Iniciar próximo round |
 
 ### Como jogar e testar o CS 2D

@@ -71,27 +71,34 @@ my_games/
   - **Quantidade de oponentes**: de `1` a `4` bots (padrão `2`);
   - **Visuais táticos**: ativar/desativar o cone de visão 2D e a mira laser.
 - Os personagens são desenhados **vistos de cima** (`_draw_topdown_soldier`): sombra no chão, botas animadas ao andar, mochila, ombros/colete tático, braços segurando a arma selecionada, capacete e visor voltado para o mouse.
+- **Passos sonoros e furtividade (`Shift`)**: tanto você quanto os inimigos geram som e anéis visuais ao correr (`SoundRipple` + `SoundManager` via `winsound`). Ao **segurar `Shift`**, você anda mais devagar (`112 px/s`) e **sem emitir passos**, permitindo flanquear e pegar os oponentes de surpresa (bots têm tempo de reação extra quando surpreendidos por trás sem ouvir passos).
+- O mapa expandido (`940×600`) conta com bunker central, corredores e pilares de cobertura para caçar os oponentes.
 - Os movimentos seguem `WASD` com deslizamento suave ao encostar em paredes ou caixas (`_move_circle_with_slide`), e os bots usam `has_line_of_sight` antes de atirar (não atiram através das paredes).
 
 ### 2.2 Controles
 - `W` / `S` / `A` / `D`: movimentação para frente (cima), trás (baixo), esquerda e direita.
+- `Segurar Shift`: andar silenciosamente (mais devagar e sem som de passos).
 - `Mouse`: mira e orientação do cone de visão.
 - `Botão Esquerdo do Mouse`: disparar (clique único ou segurando).
-- `R`: recarregar o pente (`15` balas, duração `1.25s`).
+- `R`: recarregar o pente.
 - `P`: pausar ou retomar o round.
+- `Esc`: abrir ou fechar o Menu & Opções.
 - `Enter`: iniciar o próximo round após vitória ou derrota.
 
-### 2.3 Arquitetura e classes principais (`jogo_cs_2d/cs_engine.py`)
+### 2.3 Arquitetura e classes principais (`jogo_cs_2d/`)
 - `RectObstacle`: representa paredes (`"wall"`) e caixas (`"crate"`).
-- `InputState`: snapshot das teclas `W/A/S/D`, posição do mouse, disparo e recarga.
-- `Projectile`: projéteis de jogador (`damage=34`, velocidade `760 px/s`) e dos bots (`damage=18`, velocidade `520 px/s`), com checagem por segmento (`segment_intersects_rect`) para evitar atravessar paredes.
-- `Opponent`: estado de cada um dos 2 bots (`hp=100`, `ammo=10`, patrulha, *strafe* e recarga).
-- `CS2DEngine`: motor independente de interface gráfica, facilitando testes unitários determinísticos (`test_cs_engine.py`) e futuras expansões (novas armas, bots ou mapas).
-- `CS2DApp` (`jogo_cs_2d/cs_2d.py`): renderiza a arena em `tk.Canvas` (~60 FPS via `after(16, ...)`), HUD de HP/Munição/Oponentes/Placar, cone de visão e barra de recarga.
+- `InputState`: snapshot das teclas `W/A/S/D`, `shift`, posição do mouse, disparo e recarga.
+- `SoundRipple`: anel visual de som gerado por passos do jogador (quando não segura `Shift`) e dos bots.
+- `SoundManager` (`sound_fx.py`): sintetiza em memória e toca áudio WAV assíncrono de passos, tiros e recarga.
+- `Projectile`: projéteis de jogador e dos bots, com checagem por segmento (`segment_intersects_rect`) para evitar atravessar paredes.
+- `Opponent`: estado de cada bot (`hp=100`, `ammo=10`, patrulha, investigação de som, *strafe* e recarga).
+- `CS2DEngine`: motor independente de interface gráfica, facilitando testes unitários determinísticos (`test_cs_engine.py`) e futuras expansões.
+- `CS2DApp` (`jogo_cs_2d/cs_2d.py`): renderiza a arena em `tk.Canvas` (~60 FPS via `after(16, ...)`), HUD de HP/Munição/Furtividade/Oponentes/Placar, cone de visão e barra de recarga.
 
 ### 2.4 Parâmetros fáceis de ajustar (`jogo_cs_2d/cs_engine.py`)
-- Tamanho da arena: `MAP_WIDTH = 760.0`, `MAP_HEIGHT = 540.0`
-- Jogador: `PLAYER_SPEED = 215.0`, `PLAYER_MAX_HP = 100`, `MAGAZINE_SIZE = 15`, `RELOAD_DURATION_SEC = 1.25`, `PLAYER_FIRE_COOLDOWN = 0.16`
+- Tamanho da arena: `MAP_WIDTH = 940.0`, `MAP_HEIGHT = 600.0`
+- Jogador: `PLAYER_SPEED = 215.0`, `PLAYER_WALK_SPEED = 112.0`, `PLAYER_MAX_HP = 100`, `MAGAZINE_SIZE = 15`, `RELOAD_DURATION_SEC = 1.25`, `PLAYER_FIRE_COOLDOWN = 0.16`
+- Áudio / Furtividade: `STEP_INTERVAL_RUN_DIST = 54.0`, `ENEMY_STEP_INTERVAL_DIST = 58.0`, `HEARING_RADIUS = 290.0`
 - Oponentes: `ENEMY_COUNT = 2`, `ENEMY_SPEED = 145.0`, `ENEMY_MAX_HP = 100`, `ENEMY_FIRE_COOLDOWN = 0.48`, `ENEMY_MAGAZINE = 10`
 
 ---

@@ -5,15 +5,20 @@ import math
 import random
 
 
-MAP_WIDTH = 760.0
-MAP_HEIGHT = 540.0
+MAP_WIDTH = 940.0
+MAP_HEIGHT = 600.0
 WALL_THICKNESS = 18.0
 
 PLAYER_RADIUS = 15.0
 PLAYER_SPEED = 215.0
+PLAYER_WALK_SPEED = 112.0  # Silent Shift walk speed
 PLAYER_MAX_HP = 100
 
-# Default constants preserved for compatibility
+STEP_INTERVAL_RUN_DIST = 54.0
+ENEMY_STEP_INTERVAL_DIST = 58.0
+HEARING_RADIUS = 290.0
+SOUND_AUDIBLE_RADIUS = 460.0
+
 MAGAZINE_SIZE = 15
 RELOAD_DURATION_SEC = 1.25
 PLAYER_FIRE_COOLDOWN = 0.16
@@ -102,6 +107,7 @@ class GameConfig:
     opponent_count: int = ENEMY_COUNT
     show_vision_cone: bool = True
     show_laser_sight: bool = True
+    enable_sound: bool = True
 
 
 @dataclass(frozen=True)
@@ -123,6 +129,7 @@ class InputState:
     s: bool = False
     a: bool = False
     d: bool = False
+    shift: bool = False
     mouse_x: float = MAP_WIDTH / 2.0
     mouse_y: float = MAP_HEIGHT / 2.0
     firing: bool = False
@@ -143,6 +150,18 @@ class Projectile:
 
 
 @dataclass
+class SoundRipple:
+    """Visual acoustic ring produced by footsteps (unless walking with Shift)."""
+
+    x: float
+    y: float
+    from_player: bool
+    timer: float = 0.48
+    max_timer: float = 0.48
+    max_radius: float = 44.0
+
+
+@dataclass
 class Opponent:
     """An enemy bot on the map."""
 
@@ -158,35 +177,43 @@ class Opponent:
     strafe_timer: float = 1.2
     patrol_target: tuple[float, float] = (MAP_WIDTH / 2.0, MAP_HEIGHT / 2.0)
     move_phase: float = 0.0
+    step_accum: float = 0.0
+    investigate_target: tuple[float, float] | None = None
+    investigate_timer: float = 0.0
+    reaction_delay: float = 0.0
+    was_seeing_player: bool = False
     alive: bool = True
 
 
 BOT_SPAWN_POINTS: tuple[tuple[float, float, float], ...] = (
-    (MAP_WIDTH - 90.0, 82.0, math.pi * 0.75),
-    (MAP_WIDTH - 120.0, MAP_HEIGHT - 95.0, math.pi),
-    (82.0, 82.0, math.pi * 0.25),
-    (MAP_WIDTH * 0.64, MAP_HEIGHT * 0.50, math.pi),
+    (MAP_WIDTH - 95.0, 90.0, math.pi * 0.75),
+    (MAP_WIDTH - 110.0, MAP_HEIGHT - 95.0, math.pi),
+    (115.0, 88.0, math.pi * 0.25),
+    (MAP_WIDTH * 0.62, MAP_HEIGHT * 0.50, math.pi),
 )
 
 
 def build_small_map() -> tuple[RectObstacle, ...]:
-    """Create a compact symmetrical tactical arena with walls and cover crates."""
+    """Create a medium-compact tactical arena where you hunt opponents across lanes."""
     t = WALL_THICKNESS
     return (
+        # Outer perimeter
         RectObstacle(0.0, 0.0, MAP_WIDTH, t, "wall"),
         RectObstacle(0.0, MAP_HEIGHT - t, MAP_WIDTH, t, "wall"),
         RectObstacle(0.0, 0.0, t, MAP_HEIGHT, "wall"),
         RectObstacle(MAP_WIDTH - t, 0.0, t, MAP_HEIGHT, "wall"),
-        # Mid tactical cover crate
-        RectObstacle(330.0, 225.0, 100.0, 90.0, "crate"),
-        # Left lane & right lane cover walls
-        RectObstacle(145.0, 145.0, 95.0, 32.0, "wall"),
-        RectObstacle(145.0, 360.0, 95.0, 32.0, "wall"),
-        RectObstacle(520.0, 145.0, 95.0, 32.0, "wall"),
-        RectObstacle(520.0, 360.0, 95.0, 32.0, "wall"),
-        # Center-side crates for peeking
-        RectObstacle(250.0, 105.0, 44.0, 44.0, "crate"),
-        RectObstacle(466.0, 390.0, 44.0, 44.0, "crate"),
+        # Central tactical warehouse bunker
+        RectObstacle(415.0, 240.0, 110.0, 120.0, "wall"),
+        # Upper and lower lane cover dividers
+        RectObstacle(175.0, 145.0, 125.0, 32.0, "wall"),
+        RectObstacle(175.0, 423.0, 125.0, 32.0, "wall"),
+        RectObstacle(640.0, 145.0, 125.0, 32.0, "wall"),
+        RectObstacle(640.0, 423.0, 125.0, 32.0, "wall"),
+        # Flank ambush pillars / crates for hunting & surprise peeks
+        RectObstacle(275.0, 276.0, 48.0, 48.0, "crate"),
+        RectObstacle(617.0, 276.0, 48.0, 48.0, "crate"),
+        RectObstacle(445.0, 82.0, 50.0, 46.0, "crate"),
+        RectObstacle(445.0, 472.0, 50.0, 46.0, "crate"),
     )
 
 
@@ -242,11 +269,13 @@ class CS2DEngine:
         self.obstacles = build_small_map()
         self.config = config or GameConfig()
 
-        self.player_x = 82.0
-        self.player_y = MAP_HEIGHT - 82.0
+        self.player_x = 85.0
+        self.player_y = MAP_HEIGHT - 85.0
         self.player_angle = -math.pi / 4.0
         self.player_hp = PLAYER_MAX_HP
         self.player_move_phase = 0.0
+        self.player_step_accum = 0.0
+        self.is_stealth_walking = False
         self.ammo = self.weapon_spec.magazine_size
         self.reload_timer = 0.0
         self.fire_cooldown = 0.0
@@ -255,6 +284,8 @@ class CS2DEngine:
         self.opponents: list[Opponent] = []
         self.bullets: list[Projectile] = []
         self.hit_markers: list[tuple[float, float, float]] = []
+        self.sound_ripples: list[SoundRipple] = []
+        self.pending_sounds: list[str] = []
 
         self.wins = 0
         self.losses = 0
@@ -280,6 +311,12 @@ class CS2DEngine:
     @property
     def alive_opponents(self) -> int:
         return sum(1 for bot in self.opponents if bot.alive)
+
+    def consume_sounds(self) -> list[str]:
+        """Pop queued sound effect names for the audio layer."""
+        events = list(self.pending_sounds)
+        self.pending_sounds.clear()
+        return events
 
     def apply_config(self, config: GameConfig, reset_match: bool = False) -> None:
         """Apply new menu options; optionally restart match scores/round."""
@@ -307,11 +344,13 @@ class CS2DEngine:
         if increment_round:
             self.round_number += 1
 
-        self.player_x = 82.0
-        self.player_y = MAP_HEIGHT - 82.0
+        self.player_x = 85.0
+        self.player_y = MAP_HEIGHT - 85.0
         self.player_angle = -math.pi / 4.0
         self.player_hp = PLAYER_MAX_HP
         self.player_move_phase = 0.0
+        self.player_step_accum = 0.0
+        self.is_stealth_walking = False
         self.ammo = self.weapon_spec.magazine_size
         self.reload_timer = 0.0
         self.fire_cooldown = 0.0
@@ -327,13 +366,18 @@ class CS2DEngine:
                     x=sx,
                     y=sy,
                     angle=s_angle,
-                    patrol_target=(MAP_WIDTH * 0.55, MAP_HEIGHT * (0.3 + 0.4 * (idx % 2))),
+                    patrol_target=(
+                        MAP_WIDTH * 0.56,
+                        MAP_HEIGHT * (0.28 + 0.44 * (idx % 2)),
+                    ),
                     strafe_dir=1.0 if idx % 2 == 0 else -1.0,
                 )
             )
 
         self.bullets.clear()
         self.hit_markers.clear()
+        self.sound_ripples.clear()
+        self.pending_sounds.clear()
         self.round_over = False
         self.round_won = False
         self.paused = False
@@ -350,6 +394,7 @@ class CS2DEngine:
         if self.round_over or self.is_reloading or self.ammo >= max_ammo:
             return False
         self.reload_timer = self.weapon_spec.reload_duration
+        self.pending_sounds.append("reload")
         return True
 
     def cast_ray(
@@ -396,34 +441,58 @@ class CS2DEngine:
         if inputs.reload_pressed:
             self.start_reload()
 
-        # WASD Movement
+        # WASD Movement (+ Shift silent slow walk)
         move_x = float(inputs.d) - float(inputs.a)
         move_y = float(inputs.s) - float(inputs.w)
-        if move_x != 0.0 or move_y != 0.0:
+        is_moving = move_x != 0.0 or move_y != 0.0
+        self.is_stealth_walking = inputs.shift
+
+        if is_moving:
             if move_x != 0.0 and move_y != 0.0:
                 inv_sqrt2 = 0.70710678
                 move_x *= inv_sqrt2
                 move_y *= inv_sqrt2
-            self.player_move_phase += dt * 11.0
+            speed = PLAYER_WALK_SPEED if inputs.shift else PLAYER_SPEED
+            self.player_move_phase += dt * (6.0 if inputs.shift else 11.0)
+        else:
+            speed = PLAYER_SPEED
 
+        prev_x, prev_y = self.player_x, self.player_y
         self.player_x, self.player_y = self._move_circle_with_slide(
             self.player_x,
             self.player_y,
-            move_x * PLAYER_SPEED * dt,
-            move_y * PLAYER_SPEED * dt,
+            move_x * speed * dt,
+            move_y * speed * dt,
             PLAYER_RADIUS,
         )
+        moved_dist = math.hypot(self.player_x - prev_x, self.player_y - prev_y)
+
+        # Emit player footsteps ONLY when not holding Shift
+        if moved_dist > 0.05 and not inputs.shift:
+            self.player_step_accum += moved_dist
+            if self.player_step_accum >= STEP_INTERVAL_RUN_DIST:
+                self.player_step_accum -= STEP_INTERVAL_RUN_DIST
+                self._emit_player_footstep()
+        elif inputs.shift:
+            self.player_step_accum = 0.0
 
         # Shooting with left mouse button
         if inputs.firing and not self.is_reloading and self.fire_cooldown <= 0.0:
             if self.ammo > 0:
                 self._fire_player_bullet()
 
-        # Update opponents, bullets, and hit markers
+        # Update opponents, bullets, hit markers, and sound ripples
         self._update_opponents(dt)
         self._update_bullets(dt)
         self.hit_markers = [
             (hx, hy, t - dt) for hx, hy, t in self.hit_markers if t - dt > 0.0
+        ]
+        self.sound_ripples = [
+            SoundRipple(
+                r.x, r.y, r.from_player, r.timer - dt, r.max_timer, r.max_radius
+            )
+            for r in self.sound_ripples
+            if r.timer - dt > 0.0
         ]
 
         # Check round end conditions
@@ -437,11 +506,25 @@ class CS2DEngine:
             self.round_won = True
             self.wins += 1
 
+    def _emit_player_footstep(self) -> None:
+        self.pending_sounds.append("player_step")
+        self.sound_ripples.append(
+            SoundRipple(self.player_x, self.player_y, from_player=True, max_radius=36.0)
+        )
+        # Nearby bots hear loud running footsteps and investigate!
+        for bot in self.opponents:
+            if not bot.alive:
+                continue
+            if math.hypot(bot.x - self.player_x, bot.y - self.player_y) <= HEARING_RADIUS:
+                bot.investigate_target = (self.player_x, self.player_y)
+                bot.investigate_timer = 2.6
+
     def _fire_player_bullet(self) -> None:
         w = self.weapon_spec
         self.ammo -= 1
         self.fire_cooldown = w.fire_cooldown
         self.muzzle_flash_timer = 0.05
+        self.pending_sounds.append("gunshot")
 
         shot_angle = self.player_angle + self._rng.uniform(-w.spread, w.spread)
         muzzle_dist = PLAYER_RADIUS + 11.0
@@ -457,6 +540,13 @@ class CS2DEngine:
                 damage=w.damage,
             )
         )
+        # Gunshots alert opponents across a wide radius
+        for bot in self.opponents:
+            if not bot.alive:
+                continue
+            if math.hypot(bot.x - self.player_x, bot.y - self.player_y) <= HEARING_RADIUS * 1.45:
+                bot.investigate_target = (self.player_x, self.player_y)
+                bot.investigate_timer = 3.0
 
     def _move_circle_with_slide(
         self, cx: float, cy: float, dx: float, dy: float, radius: float
@@ -487,15 +577,39 @@ class CS2DEngine:
                     bot.ammo = ENEMY_MAGAZINE
             if bot.fire_cooldown > 0.0:
                 bot.fire_cooldown = max(0.0, bot.fire_cooldown - dt)
+            if bot.investigate_timer > 0.0:
+                bot.investigate_timer = max(0.0, bot.investigate_timer - dt)
+                if bot.investigate_timer == 0.0:
+                    bot.investigate_target = None
 
             can_see = self.has_line_of_sight(
                 bot.x, bot.y, self.player_x, self.player_y
             )
             dist = math.hypot(self.player_x - bot.x, self.player_y - bot.y)
             bot.move_phase += dt * 9.0
+            prev_x, prev_y = bot.x, bot.y
 
             if can_see:
-                bot.angle = math.atan2(self.player_y - bot.y, self.player_x - bot.x)
+                # Surprise delay if player sneaks up from behind without being heard
+                if not bot.was_seeing_player:
+                    angle_to_player = math.atan2(
+                        self.player_y - bot.y, self.player_x - bot.x
+                    )
+                    angle_diff = abs(
+                        math.atan2(
+                            math.sin(angle_to_player - bot.angle),
+                            math.cos(angle_to_player - bot.angle),
+                        )
+                    )
+                    if angle_diff > math.radians(95.0) and bot.investigate_target is None:
+                        bot.reaction_delay = 0.42
+                bot.was_seeing_player = True
+
+                if bot.reaction_delay > 0.0:
+                    bot.reaction_delay = max(0.0, bot.reaction_delay - dt)
+                else:
+                    bot.angle = math.atan2(self.player_y - bot.y, self.player_x - bot.x)
+
                 bot.strafe_timer -= dt
                 if bot.strafe_timer <= 0.0:
                     bot.strafe_timer = self._rng.uniform(0.6, 1.4)
@@ -504,10 +618,10 @@ class CS2DEngine:
                 perp_angle = bot.angle + math.pi / 2.0
                 vx = math.cos(perp_angle) * bot.strafe_dir * diff.bot_speed * 0.75
                 vy = math.sin(perp_angle) * bot.strafe_dir * diff.bot_speed * 0.75
-                if dist > 230.0:
+                if dist > 250.0:
                     vx += math.cos(bot.angle) * diff.bot_speed * 0.55
                     vy += math.sin(bot.angle) * diff.bot_speed * 0.55
-                elif dist < 120.0:
+                elif dist < 130.0:
                     vx -= math.cos(bot.angle) * diff.bot_speed * 0.55
                     vy -= math.sin(bot.angle) * diff.bot_speed * 0.55
 
@@ -515,7 +629,11 @@ class CS2DEngine:
                     bot.x, bot.y, vx * dt, vy * dt, ENEMY_RADIUS
                 )
 
-                if bot.reload_timer <= 0.0 and bot.fire_cooldown <= 0.0:
+                if (
+                    bot.reaction_delay <= 0.0
+                    and bot.reload_timer <= 0.0
+                    and bot.fire_cooldown <= 0.0
+                ):
                     if bot.ammo > 0:
                         bot.ammo -= 1
                         bot.fire_cooldown = diff.fire_cooldown + self._rng.uniform(0.0, 0.2)
@@ -535,27 +653,52 @@ class CS2DEngine:
                     else:
                         bot.reload_timer = 1.4
             else:
-                tx, ty = bot.patrol_target
-                if math.hypot(tx - bot.x, ty - bot.y) < 24.0:
+                bot.was_seeing_player = False
+                target = (
+                    bot.investigate_target
+                    if bot.investigate_target is not None
+                    else bot.patrol_target
+                )
+                tx, ty = target
+                if math.hypot(tx - bot.x, ty - bot.y) < 26.0:
+                    if bot.investigate_target is not None:
+                        bot.investigate_target = None
+                        bot.investigate_timer = 0.0
                     bot.patrol_target = (
                         self._rng.uniform(80.0, MAP_WIDTH - 80.0),
                         self._rng.uniform(80.0, MAP_HEIGHT - 80.0),
                     )
                     tx, ty = bot.patrol_target
+
                 move_angle = math.atan2(ty - bot.y, tx - bot.x)
                 bot.angle = move_angle
-                prev_x, prev_y = bot.x, bot.y
+                speed_mult = 0.90 if bot.investigate_target is not None else 0.72
                 bot.x, bot.y = self._move_circle_with_slide(
                     bot.x,
                     bot.y,
-                    math.cos(move_angle) * diff.bot_speed * 0.7 * dt,
-                    math.sin(move_angle) * diff.bot_speed * 0.7 * dt,
+                    math.cos(move_angle) * diff.bot_speed * speed_mult * dt,
+                    math.sin(move_angle) * diff.bot_speed * speed_mult * dt,
                     ENEMY_RADIUS,
                 )
                 if math.hypot(bot.x - prev_x, bot.y - prev_y) < 0.2:
+                    bot.investigate_target = None
                     bot.patrol_target = (
                         self._rng.uniform(80.0, MAP_WIDTH - 80.0),
                         self._rng.uniform(80.0, MAP_HEIGHT - 80.0),
+                    )
+
+            # Bot footsteps (audible + visual ripple so player can track them!)
+            bot_moved = math.hypot(bot.x - prev_x, bot.y - prev_y)
+            if bot_moved > 0.05:
+                bot.step_accum += bot_moved
+                if bot.step_accum >= ENEMY_STEP_INTERVAL_DIST:
+                    bot.step_accum -= ENEMY_STEP_INTERVAL_DIST
+                    if dist <= SOUND_AUDIBLE_RADIUS:
+                        self.pending_sounds.append(
+                            "enemy_step" if dist <= 240.0 else "enemy_step_far"
+                        )
+                    self.sound_ripples.append(
+                        SoundRipple(bot.x, bot.y, from_player=False, max_radius=46.0)
                     )
 
     def _update_bullets(self, dt: float) -> None:
@@ -585,6 +728,10 @@ class CS2DEngine:
                         continue
                     if math.hypot(b.x - bot.x, b.y - bot.y) <= ENEMY_RADIUS + 3.0:
                         bot.hp = max(0, bot.hp - b.damage)
+                        # Getting shot alerts the bot immediately
+                        bot.investigate_target = (self.player_x, self.player_y)
+                        bot.investigate_timer = 3.0
+                        bot.reaction_delay = 0.0
                         self.hit_markers.append((b.x, b.y, 0.22))
                         if bot.hp == 0:
                             bot.alive = False

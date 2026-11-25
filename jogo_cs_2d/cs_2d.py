@@ -1,4 +1,4 @@
-"""Tkinter graphical interface for CS 2D with top-down soldiers and options menu."""
+"""Tkinter graphical interface for CS 2D with top-down soldiers, stealth, sound, and menu."""
 
 import math
 from time import perf_counter
@@ -15,6 +15,7 @@ from cs_engine import (
     PLAYER_MAX_HP,
     WEAPONS,
 )
+from sound_fx import SoundManager
 
 # Theme colors
 BG_MAIN = "#0f172a"
@@ -63,7 +64,9 @@ class CS2DApp:
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.engine = CS2DEngine()
+        self.sound = SoundManager(enabled=self.engine.config.enable_sound)
         self._pressed_keys: set[str] = set()
+        self._shift_held = False
         self._mouse_x = MAP_WIDTH / 2.0
         self._mouse_y = MAP_HEIGHT / 2.0
         self._mouse_firing = False
@@ -73,7 +76,6 @@ class CS2DApp:
         self._last_tick = perf_counter()
         self._after_id: str | None = None
 
-        # Option button groups for highlighting selection
         self._diff_buttons: dict[str, tk.Button] = {}
         self._weapon_buttons: dict[str, tk.Button] = {}
         self._count_buttons: dict[int, tk.Button] = {}
@@ -83,6 +85,7 @@ class CS2DApp:
         self._selected_count = self.engine.config.opponent_count
         self._var_cone = tk.BooleanVar(value=self.engine.config.show_vision_cone)
         self._var_laser = tk.BooleanVar(value=self.engine.config.show_laser_sight)
+        self._var_sound = tk.BooleanVar(value=self.engine.config.enable_sound)
 
         self._configure_window()
         self._build_ui()
@@ -95,13 +98,13 @@ class CS2DApp:
 
     def _configure_window(self) -> None:
         self.root.title("CS 2D — Arena Tática")
-        self.root.geometry("820x700")
-        self.root.minsize(800, 670)
+        self.root.geometry("990x760")
+        self.root.minsize(970, 730)
         self.root.configure(bg=BG_MAIN)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _build_ui(self) -> None:
-        container = tk.Frame(self.root, bg=BG_MAIN, padx=20, pady=12)
+        container = tk.Frame(self.root, bg=BG_MAIN, padx=18, pady=10)
         container.pack(fill=tk.BOTH, expand=True)
 
         # Header
@@ -115,6 +118,17 @@ class CS2DApp:
             fg=FG_MUTED,
             font=("Segoe UI", 10, "bold"),
         ).pack(side=tk.LEFT)
+
+        self.stealth_badge = tk.Label(
+            header,
+            text="CORRENDO (Com passos)",
+            bg=BG_CARD,
+            fg=FG_MUTED,
+            font=("Segoe UI", 8, "bold"),
+            padx=10,
+            pady=3,
+        )
+        self.stealth_badge.pack(side=tk.LEFT, padx=(14, 0))
 
         self.menu_btn = tk.Button(
             header,
@@ -162,9 +176,9 @@ class CS2DApp:
             highlightbackground=BORDER_SLATE,
             highlightthickness=1,
             padx=14,
-            pady=8,
+            pady=7,
         )
-        hud.pack(fill=tk.X, pady=(8, 10))
+        hud.pack(fill=tk.X, pady=(8, 8))
         hud.columnconfigure((0, 1, 2, 3), weight=1)
 
         self.hp_label = tk.Label(
@@ -220,11 +234,11 @@ class CS2DApp:
         # Controls hint
         tk.Label(
             container,
-            text="WASD (mover)  •  Mouse (visão/mira)  •  Botão Esq (atirar)  •  R (recarregar)  •  Esc (menu/opções)",
+            text="WASD (mover)  •  Segurar Shift (andar sem passos)  •  Mouse (visão/mira)  •  Botão Esq (atirar)  •  R (recarregar)  •  Esc (menu)",
             bg=BG_MAIN,
             fg=FG_MUTED,
             font=("Segoe UI", 8),
-        ).pack(pady=(10, 0))
+        ).pack(pady=(8, 0))
 
     def _build_menu_overlay(self) -> None:
         self.menu_overlay = tk.Frame(
@@ -246,13 +260,12 @@ class CS2DApp:
 
         tk.Label(
             self.menu_overlay,
-            text="Configure sua partida tática contra os oponentes",
+            text="Configure sua partida tática e use Shift para andar sem fazer barulho",
             bg=BG_MAIN,
             fg=FG_MUTED,
             font=("Segoe UI", 9),
         ).pack(pady=(0, 14))
 
-        # Difficulty option
         self._add_option_title("Dificuldade dos Oponentes")
         diff_row = tk.Frame(self.menu_overlay, bg=BG_MAIN)
         diff_row.pack(fill=tk.X, pady=(0, 10))
@@ -270,7 +283,6 @@ class CS2DApp:
             btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=3)
             self._diff_buttons[key] = btn
 
-        # Weapon option
         self._add_option_title("Arma Inicial")
         weapon_row = tk.Frame(self.menu_overlay, bg=BG_MAIN)
         weapon_row.pack(fill=tk.X, pady=(0, 10))
@@ -288,7 +300,6 @@ class CS2DApp:
             btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=3)
             self._weapon_buttons[key] = btn
 
-        # Opponent count option
         self._add_option_title("Quantidade de Oponentes")
         count_row = tk.Frame(self.menu_overlay, bg=BG_MAIN)
         count_row.pack(fill=tk.X, pady=(0, 10))
@@ -306,35 +317,26 @@ class CS2DApp:
             btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=3)
             self._count_buttons[count] = btn
 
-        # Visual toggles
         toggles_row = tk.Frame(self.menu_overlay, bg=BG_CARD, padx=12, pady=8)
         toggles_row.pack(fill=tk.X, pady=(4, 16))
 
-        tk.Checkbutton(
-            toggles_row,
-            text="Mostrar cone de visão 2D",
-            variable=self._var_cone,
-            bg=BG_CARD,
-            fg=FG_PRIMARY,
-            selectcolor=BG_MAIN,
-            activebackground=BG_CARD,
-            activeforeground=FG_PRIMARY,
-            font=("Segoe UI", 9),
-        ).pack(side=tk.LEFT, padx=(0, 16))
+        for label, var in (
+            ("Cone de visão 2D", self._var_cone),
+            ("Mira laser", self._var_laser),
+            ("Som de passos e tiros", self._var_sound),
+        ):
+            tk.Checkbutton(
+                toggles_row,
+                text=label,
+                variable=var,
+                bg=BG_CARD,
+                fg=FG_PRIMARY,
+                selectcolor=BG_MAIN,
+                activebackground=BG_CARD,
+                activeforeground=FG_PRIMARY,
+                font=("Segoe UI", 9),
+            ).pack(side=tk.LEFT, padx=(0, 12))
 
-        tk.Checkbutton(
-            toggles_row,
-            text="Mostrar mira laser",
-            variable=self._var_laser,
-            bg=BG_CARD,
-            fg=FG_PRIMARY,
-            selectcolor=BG_MAIN,
-            activebackground=BG_CARD,
-            activeforeground=FG_PRIMARY,
-            font=("Segoe UI", 9),
-        ).pack(side=tk.LEFT)
-
-        # Action buttons
         actions = tk.Frame(self.menu_overlay, bg=BG_MAIN)
         actions.pack(fill=tk.X)
 
@@ -436,7 +438,7 @@ class CS2DApp:
                 text="Continuar Partida" if self._match_started else "Iniciar Partida"
             )
             self.menu_overlay.place(
-                relx=0.5, rely=0.5, anchor=tk.CENTER, width=520
+                relx=0.5, rely=0.5, anchor=tk.CENTER, width=560
             )
             self.menu_overlay.lift()
         else:
@@ -445,6 +447,7 @@ class CS2DApp:
     def _bind_controls(self) -> None:
         self.root.bind("<KeyPress>", self._on_key_press)
         self.root.bind("<KeyRelease>", self._on_key_release)
+        self.root.bind("<FocusOut>", self._on_focus_out)
         self.root.bind("<KeyPress-r>", lambda _e: self._queue_reload())
         self.root.bind("<KeyPress-R>", lambda _e: self._queue_reload())
         self.root.bind("<KeyPress-p>", lambda _e: self.on_toggle_pause())
@@ -458,10 +461,23 @@ class CS2DApp:
         self.canvas.bind("<ButtonRelease-1>", self._on_mouse_up)
 
     def _on_key_press(self, event: tk.Event) -> None:
-        self._pressed_keys.add(event.keysym.lower())
+        sym = event.keysym.lower()
+        self._pressed_keys.add(sym)
+        if sym in ("shift_l", "shift_r") or bool(event.state & 0x0001):
+            self._shift_held = True
 
     def _on_key_release(self, event: tk.Event) -> None:
-        self._pressed_keys.discard(event.keysym.lower())
+        sym = event.keysym.lower()
+        self._pressed_keys.discard(sym)
+        if sym in ("shift_l", "shift_r"):
+            self._shift_held = (
+                "shift_l" in self._pressed_keys or "shift_r" in self._pressed_keys
+            )
+
+    def _on_focus_out(self, _event: tk.Event) -> None:
+        self._pressed_keys.clear()
+        self._shift_held = False
+        self._mouse_firing = False
 
     def _on_mouse_move(self, event: tk.Event) -> None:
         self._mouse_x = float(event.x)
@@ -501,7 +517,9 @@ class CS2DApp:
             opponent_count=self._selected_count,
             show_vision_cone=self._var_cone.get(),
             show_laser_sight=self._var_laser.get(),
+            enable_sound=self._var_sound.get(),
         )
+        self.sound.enabled = cfg.enable_sound
         self.engine.apply_config(cfg, reset_match=not self._match_started)
         self._match_started = True
         self._show_menu_overlay(False)
@@ -516,7 +534,9 @@ class CS2DApp:
             opponent_count=self._selected_count,
             show_vision_cone=self._var_cone.get(),
             show_laser_sight=self._var_laser.get(),
+            enable_sound=self._var_sound.get(),
         )
+        self.sound.enabled = cfg.enable_sound
         self.engine.apply_config(cfg, reset_match=True)
         self._match_started = True
         self._show_menu_overlay(False)
@@ -548,11 +568,15 @@ class CS2DApp:
         keys = self._pressed_keys
         reload_now = self._reload_queued
         self._reload_queued = False
+        shift_now = (
+            self._shift_held or "shift_l" in keys or "shift_r" in keys
+        )
         return InputState(
             w="w" in keys,
             s="s" in keys,
             a="a" in keys,
             d="d" in keys,
+            shift=shift_now,
             mouse_x=self._mouse_x,
             mouse_y=self._mouse_y,
             firing=self._mouse_firing,
@@ -569,6 +593,8 @@ class CS2DApp:
 
         if not self._menu_open:
             self.engine.update(dt, self._current_inputs())
+            for sound_name in self.engine.consume_sounds():
+                self.sound.play(sound_name)
             self._refresh_hud()
             self._render()
         self._schedule_loop()
@@ -589,6 +615,15 @@ class CS2DApp:
             self.ammo_label.config(
                 text=f"Munição: {self.engine.ammo}/{max_ammo}",
                 fg=ACCENT_WARN,
+            )
+
+        if self.engine.is_stealth_walking:
+            self.stealth_badge.config(
+                text="FURTIVO [SHIFT] (Sem passos)", fg=ACCENT_WIN
+            )
+        else:
+            self.stealth_badge.config(
+                text="CORRENDO (Com passos)", fg=FG_MUTED
             )
 
         total_bots = len(self.engine.opponents)
@@ -615,14 +650,29 @@ class CS2DApp:
         c.delete("all")
 
         # Floor grid
-        for gx in range(38, int(MAP_WIDTH), 38):
+        for gx in range(47, int(MAP_WIDTH), 47):
             c.create_line(gx, 0, gx, MAP_HEIGHT, fill=FLOOR_GRID)
-        for gy in range(38, int(MAP_HEIGHT), 38):
+        for gy in range(47, int(MAP_HEIGHT), 47):
             c.create_line(0, gy, MAP_WIDTH, gy, fill=FLOOR_GRID)
 
         # 2D Vision cone
         if self.engine.config.show_vision_cone and not self.engine.round_over:
             self._draw_vision_cone()
+
+        # Acoustic footstep ripples (visible even behind cover!)
+        for ripple in self.engine.sound_ripples:
+            progress = 1.0 - (ripple.timer / ripple.max_timer)
+            r = 10.0 + progress * ripple.max_radius
+            color = CT_COLOR if ripple.from_player else "#fb923c"
+            c.create_oval(
+                ripple.x - r,
+                ripple.y - r,
+                ripple.x + r,
+                ripple.y + r,
+                outline=color,
+                width=2 if progress < 0.5 else 1,
+                dash=(4, 3),
+            )
 
         # Map obstacles
         for obs in self.engine.obstacles:
@@ -651,7 +701,7 @@ class CS2DApp:
                 self.engine.player_x,
                 self.engine.player_y,
                 self.engine.player_angle,
-                420.0,
+                460.0,
             )
             c.create_line(
                 self.engine.player_x,
@@ -695,6 +745,16 @@ class CS2DApp:
                 weapon_key=self.engine.config.weapon,
                 is_player=True,
             )
+            if self.engine.is_stealth_walking:
+                c.create_oval(
+                    self.engine.player_x - 20,
+                    self.engine.player_y - 20,
+                    self.engine.player_x + 20,
+                    self.engine.player_y + 20,
+                    outline=ACCENT_WIN,
+                    width=1,
+                    dash=(3, 3),
+                )
             if self.engine.muzzle_flash_timer > 0.0:
                 flash_dist = 27.0 if self.engine.config.weapon == "pistol" else 31.0
                 mx = self.engine.player_x + math.cos(self.engine.player_angle) * flash_dist
@@ -743,7 +803,7 @@ class CS2DApp:
         c.create_line(mx, my - 12, mx, my - 4, fill=ACCENT_WARN)
         c.create_line(mx, my + 4, mx, my + 12, fill=ACCENT_WARN)
 
-        # Pause or Round Over overlay (only when menu isn't covering it)
+        # Pause or Round Over overlay
         if not self._menu_open and (self.engine.paused or self.engine.round_over):
             c.create_rectangle(
                 MAP_WIDTH / 2 - 200,
@@ -806,7 +866,7 @@ class CS2DApp:
         points: list[float] = [px, py]
         for i in range(steps + 1):
             a = base_angle - fov / 2.0 + (fov * i / steps)
-            rx, ry = self.engine.cast_ray(px, py, a, 380.0)
+            rx, ry = self.engine.cast_ray(px, py, a, 420.0)
             points.extend((rx, ry))
         self.canvas.create_polygon(
             points,
@@ -833,12 +893,10 @@ class CS2DApp:
         pack_color = "#0f172a" if is_player else "#451a03"
         skin_color = "#eab38f"
 
-        # Ground drop shadow
         c.create_oval(
             x - 14, y - 10, x + 16, y + 16, fill="#0b1120", outline=""
         )
 
-        # Walking boots peeking from beneath torso
         step = math.sin(move_phase) * 4.5
         for side, offset in ((-1, step), (1, -step)):
             boot_pts = _rotated_poly(
@@ -854,13 +912,11 @@ class CS2DApp:
             )
             c.create_polygon(boot_pts, fill="#020617", outline="")
 
-        # Tactical backpack on the back
         pack_pts = _rotated_poly(
             x, y, angle, ((-14.0, -7.0), (-6.0, -7.0), (-6.0, 7.0), (-14.0, 7.0))
         )
         c.create_polygon(pack_pts, fill=pack_color, outline="#020617", width=1)
 
-        # Broad shoulders / tactical vest (wider perpendicular to aim direction)
         torso_pts = _rotated_poly(
             x,
             y,
@@ -878,7 +934,6 @@ class CS2DApp:
         )
         c.create_polygon(torso_pts, fill=vest_color, outline="#020617", width=2)
 
-        # Arms reaching forward toward the weapon
         right_arm = _rotated_poly(
             x,
             y,
@@ -894,14 +949,12 @@ class CS2DApp:
         c.create_polygon(right_arm, fill=sleeve_color, outline="#020617", width=1)
         c.create_polygon(left_arm, fill=sleeve_color, outline="#020617", width=1)
 
-        # Hands
         for hx_l, hy_l in ((13.5, 4.5), (17.0, -1.0)):
             hx, hy = _rotate_point(x, y, hx_l, hy_l, angle)
             c.create_oval(
                 hx - 2.6, hy - 2.6, hx + 2.6, hy + 2.6, fill=skin_color, outline=""
             )
 
-        # Weapon silhouette seen from top-down
         if weapon_key == "pistol":
             gun_pts = _rotated_poly(
                 x, y, angle, ((12.0, -1.5), (24.0, -1.5), (24.0, 2.5), (12.0, 2.5))
@@ -916,7 +969,7 @@ class CS2DApp:
             )
             c.create_polygon(body_pts, fill="#334155", outline="#020617", width=1)
             c.create_polygon(barrel_pts, fill="#94a3b8", outline="")
-        else:  # rifle
+        else:
             stock_pts = _rotated_poly(
                 x, y, angle, ((3.0, -1.5), (22.0, -2.0), (22.0, 3.0), (3.0, 3.0))
             )
@@ -926,7 +979,6 @@ class CS2DApp:
             c.create_polygon(stock_pts, fill="#1e293b", outline="#020617", width=1)
             c.create_polygon(barrel_pts, fill="#cbd5e1", outline="")
 
-        # Tactical helmet & visor facing aim direction
         c.create_oval(
             x - 8.5, y - 8.5, x + 8.5, y + 8.5,
             fill=helmet_color, outline="#020617", width=2,
