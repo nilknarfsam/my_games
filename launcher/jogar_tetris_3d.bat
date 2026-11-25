@@ -1,6 +1,6 @@
 @echo off
 setlocal
-cd /d "%~dp0jogo_tetris_3d"
+cd /d "%~dp0..\jogo_tetris_3d"
 
 if not exist "node_modules" (
     echo Instalando dependencias do Tetris 3D...

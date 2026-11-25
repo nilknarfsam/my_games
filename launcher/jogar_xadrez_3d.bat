@@ -1,6 +1,6 @@
 @echo off
 setlocal
-cd /d "%~dp0jogo_xadrez_3d"
+cd /d "%~dp0..\jogo_xadrez_3d"
 
 if not exist "node_modules" (
     echo Instalando dependencias do Xadrez 3D...
