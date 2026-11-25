@@ -9,10 +9,35 @@ Guia técnico e de uso completo de todos os projetos do repositório `my_games`,
 ```text
 my_games/
 ├── jogar_cs_2d.bat               # Atalho direto no Windows para abrir o CS 2D (single-player)
-├── README.md                     # Página inicial com destaque no CS 2D
-├── .gitignore                    # Ignora __pycache__, *.exe, .godot/, etc.
+├── jogar_tetris_3d.bat           # Atalho direto no Windows para abrir o Tetris 3D
+├── jogar_xadrez_3d.bat           # Atalho direto no Windows para abrir o Xadrez 3D
+├── README.md                     # Página inicial com índice de todos os projetos
+├── .gitignore                    # Ignora __pycache__, *.exe, .godot/, node_modules/, dist/
 ├── docs/
 │   └── DOCUMENTACAO.md           # Esta documentação completa
+├── jogo_tetris_3d/               # Tetris 3D (Three.js + Vite + ES Modules)
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.js
+│   ├── src/
+│   │   ├── main.js
+│   │   ├── sound.js
+│   │   ├── style.css
+│   │   ├── tetris_engine.js
+│   │   └── tetris_engine.test.js
+│   └── README.md
+├── jogo_xadrez_3d/               # Xadrez 3D (Three.js + Vite + IA Minimax)
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.js
+│   ├── src/
+│   │   ├── main.js
+│   │   ├── piece_meshes.js
+│   │   ├── sound.js
+│   │   ├── style.css
+│   │   ├── chess_engine.js
+│   │   └── chess_engine.test.js
+│   └── README.md
 ├── jogo_cs_2d/                   # [FOCO ATUAL] CS 2D Single-Player (Python + Tkinter)
 │   ├── cs_2d.py
 │   ├── cs_engine.py
@@ -140,7 +165,21 @@ my_games/
 
 ---
 
-## 5. Base Futura Multiplayer em Godot 4 (`jogo_cs_2d_godot/`)
+## 5. Jogos 3D WebGL (Three.js + Vite)
+
+### 5.1 Tetris 3D (`jogo_tetris_3d/`)
+- **Atalho direto:** `jogar_tetris_3d.bat` (na raiz do repositório).
+- **Arquivos principais:** `src/tetris_engine.js` (`TetrisEngine`), `src/tetris_engine.test.js`, `src/main.js`, `src/sound.js`, `index.html`, `src/style.css`.
+- **Recursos:** tabuleiro `10×20` em 3D com blocos chanfrados (`RoundedBoxGeometry`), sombras suaves, câmera orbital interativa + 3 presets (`3D Clássica`, `Frontal`, `Dinâmica`), sorteio *7-bag*, *wall-kick*, *lock delay*, peça fantasma (*ghost*), *hold*, partículas na limpeza de linhas, recorde em `localStorage` e áudio procedural via Web Audio API.
+
+### 5.2 Xadrez 3D (`jogo_xadrez_3d/`)
+- **Atalho direto:** `jogar_xadrez_3d.bat` (na raiz do repositório).
+- **Arquivos principais:** `src/chess_engine.js` (`ChessEngine`, `chooseAIMove`), `src/chess_engine.test.js`, `src/piece_meshes.js`, `src/main.js`, `src/sound.js`, `index.html`, `src/style.css`.
+- **Recursos:** peças Staunton esculpidas em 3D (`LatheGeometry` e `ExtrudeGeometry`), regras oficiais completas (roque curto/longo, *en passant*, promoção de peão com escolha de peça, xeque, xeque-mate, afogamento, regra dos 50 lances e material insuficiente), modo **Contra IA** (Brancas ou Pretas em 3 dificuldades: Fácil, Média e Difícil usando Minimax + Alpha-Beta) e modo **2 Jogadores (Local)**, seleção por *raycasting*, histórico em notação algébrica (`SAN`), botão Desfazer (`U`) e câmera livre/invertível (`C`).
+
+---
+
+## 6. Base Futura Multiplayer em Godot 4 (`jogo_cs_2d_godot/`)
 
 - Utiliza **Godot 4.2+** (testado na importação headless com **Godot 4.7.2**) e **`ENetMultiplayerPeer` (UDP)** com servidor autoritativo.
 - Inclui lobby Host/Cliente, `MultiplayerSpawner`, `MultiplayerSynchronizer`, sombras 2D com `PointLight2D` + `LightOccluder2D` e opção de incluir os 2 bots oponentes.
@@ -151,11 +190,15 @@ my_games/
 
 ---
 
-## 6. Testes Automatizados
+## 7. Testes Automatizados
 
 Todos os motores de lógica dos jogos e cronômetros são desacoplados da interface gráfica e possuem testes unitários:
 
 ```powershell
+# Node.js (Jogos 3D): testes unitários e build de produção
+cd .\jogo_tetris_3d; npm test; npm run build; cd ..
+cd .\jogo_xadrez_3d; npm test; npm run build; cd ..
+
 # Python: rodar testes de cada módulo
 python -m unittest discover -s jogo_cs_2d -v
 python -m unittest discover -s jogo_da_forca -v
@@ -173,7 +216,7 @@ godot_console --path .\jogo_cs_2d_godot --headless --import --quit
 
 ---
 
-## 7. Fluxo Git para Continuar em Outro PC
+## 8. Fluxo Git para Continuar em Outro PC
 
 ```powershell
 # Primeira vez em outro computador

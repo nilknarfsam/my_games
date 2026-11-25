@@ -1,6 +1,6 @@
 # My Games — Coleção de Jogos e Utilitários
 
-Repositório pessoal de jogos 2D e utilitários desenvolvidos em **Python (Tkinter)**, **C++ (Win32)** e **Godot 4**, com foco principal atual no **CS 2D — Modo Single-Player com 2 Oponentes**.
+Repositório pessoal de jogos 2D, **3D (WebGL / Three.js)** e utilitários desenvolvidos em **Python (Tkinter)**, **JavaScript + Three.js**, **C++ (Win32)** e **Godot 4**, com foco recente no **CS 2D** e nos novos jogos **Tetris 3D** e **Xadrez 3D**.
 
 > 📘 **Documentação completa do repositório (arquitetura, regras, parâmetros e testes):** [`docs/DOCUMENTACAO.md`](docs/DOCUMENTACAO.md)
 
@@ -68,6 +68,7 @@ python -m unittest discover -s jogo_cs_2d -v
 | [`jogo_de_nave/`](jogo_de_nave/README.md) | **Jogo de Nave** | Movimento em 4 direções, 3 corações, 3 níveis de tiro, bombas/armas especiais com limite de 20s e naves malucas | `python .\jogo_de_nave\nave.py` |
 | [`jogo_da_cobrinha/`](jogo_da_cobrinha/README.md) | **Jogo da Cobrinha** | Crescimento progressivo, comida bônus, objetos de obstáculo e outras cobras rivais na arena | `python .\jogo_da_cobrinha\cobrinha.py` |
 | [`jogo_tetris_3d/`](jogo_tetris_3d/README.md) | **Tetris 3D** | Tabuleiro 3D em WebGL (Three.js), blocos chanfrados com sombras, câmera orbital, ghost piece, hold e áudio procedural | `.\jogar_tetris_3d.bat` |
+| [`jogo_xadrez_3d/`](jogo_xadrez_3d/README.md) | **Xadrez 3D** | Peças 3D esculpidas (Three.js), regras oficiais completas, IA Minimax (3 níveis), modo 2 jogadores e notação algébrica | `.\jogar_xadrez_3d.bat` |
 
 ---
 
@@ -93,6 +94,7 @@ python -m unittest discover -s jogo_cs_2d -v
 
 ## 🛠️ Requisitos
 
+- **Jogos 3D WebGL (`jogo_tetris_3d/` e `jogo_xadrez_3d/`)**: Node.js 20+ e `npm` (os atalhos `.bat` instalam `three` e `vite` automaticamente na primeira execução).
 - **Jogos e utilitários Python**: Python 3.12+ com `Tkinter` (incluso na instalação padrão do Python no Windows, sem dependências externas).
 - **Cronômetro C++**: `g++` (MSYS2 / MinGW) para recompilar via `cpp/build.ps1`.
 - **Projeto Godot 4**: Godot 4.2+ (`winget install GodotEngine.GodotEngine`).

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Xadrez 3D — Three.js</title>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene"></canvas>
+
+      <aside class="hud hud-left">
+        <div class="brand">
+          <span class="badge">3D WebGL</span>
+          <h1>XADREZ <span>3D</span></h1>
+        </div>
+
+        <div class="panel status-panel">
+          <div class="turn-indicator">
+            <span id="turn-dot" class="dot dot-white"></span>
+            <div>
+              <span class="label">Turno Atual</span>
+              <strong id="turn-text">Brancas</strong>
+            </div>
+          </div>
+          <p id="status-text" class="status-sub">Selecione uma peça para jogar</p>
+        </div>
+
+        <div class="panel config-panel">
+          <label class="field">
+            <span class="label">Modo de Jogo</span>
+            <select id="mode-select">
+              <option value="ai-b">Contra IA (Você: Brancas)</option>
+              <option value="ai-w">Contra IA (Você: Pretas)</option>
+              <option value="pvp">2 Jogadores (Local)</option>
+            </select>
+          </label>
+          <label class="field" id="difficulty-field">
+            <span class="label">Dificuldade da IA</span>
+            <select id="difficulty-select">
+              <option value="easy">Fácil</option>
+              <option value="medium" selected>Média</option>
+              <option value="hard">Difícil</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="panel captured-panel">
+          <div class="cap-row">
+            <span class="label">Capturadas (Brancas)</span>
+            <div id="cap-white" class="cap-list">—</div>
+          </div>
+          <div class="cap-row">
+            <span class="label">Capturadas (Pretas)</span>
+            <div id="cap-black" class="cap-list">—</div>
+          </div>
+        </div>
+      </aside>
+
+      <aside class="hud hud-right">
+        <div class="panel actions-panel">
+          <button id="btn-new" class="btn btn-primary" type="button">Nova Partida</button>
+          <button id="btn-undo" class="btn" type="button">Desfazer Lance (U)</button>
+          <button id="btn-flip" class="btn" type="button">Girar Câmera (C)</button>
+          <button id="btn-mute" class="btn" type="button">Som: Ligado (M)</button>
+        </div>
+
+        <div class="panel history-panel">
+          <h2>Histórico de Lances</h2>
+          <ol id="move-history" class="move-list"></ol>
+        </div>
+      </aside>
+
+      <div id="promo-modal" class="overlay hidden">
+        <div class="overlay-card">
+          <h2>Promoção de Peão</h2>
+          <p>Escolha a peça para promover:</p>
+          <div class="promo-grid">
+            <button class="btn btn-primary promo-btn" data-piece="q" type="button">♕ Rainha</button>
+            <button class="btn promo-btn" data-piece="r" type="button">♖ Torre</button>
+            <button class="btn promo-btn" data-piece="b" type="button">♗ Bispo</button>
+            <button class="btn promo-btn" data-piece="n" type="button">♘ Cavalo</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="gameover-modal" class="overlay hidden">
+        <div class="overlay-card">
+          <h2 id="gameover-title">Xeque-Mate!</h2>
+          <p id="gameover-subtitle">As Brancas venceram a partida.</p>
+          <button id="btn-gameover-new" class="btn btn-primary" type="button">Jogar Novamente</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
