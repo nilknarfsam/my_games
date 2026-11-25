@@ -67,6 +67,7 @@ python -m unittest discover -s jogo_cs_2d -v
 | [`jogo_de_carro/`](jogo_de_carro/README.md) | **Jogo de Carro (3 Faixas)** | Controle pelas setas, 10 níveis de velocidade jogáveis e carros aleatórios que mudam de estilo e faixa | `python .\jogo_de_carro\carro.py` |
 | [`jogo_de_nave/`](jogo_de_nave/README.md) | **Jogo de Nave** | Movimento em 4 direções, 3 corações, 3 níveis de tiro, bombas/armas especiais com limite de 20s e naves malucas | `python .\jogo_de_nave\nave.py` |
 | [`jogo_da_cobrinha/`](jogo_da_cobrinha/README.md) | **Jogo da Cobrinha** | Crescimento progressivo, comida bônus, objetos de obstáculo e outras cobras rivais na arena | `python .\jogo_da_cobrinha\cobrinha.py` |
+| [`jogo_tetris_3d/`](jogo_tetris_3d/README.md) | **Tetris 3D** | Tabuleiro 3D em WebGL (Three.js), blocos chanfrados com sombras, câmera orbital, ghost piece, hold e áudio procedural | `.\jogar_tetris_3d.bat` |
 
 ---
 

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tetris 3D — Three.js</title>
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene"></canvas>
+
+      <aside class="hud hud-left">
+        <div class="brand">
+          <span class="badge">3D WebGL</span>
+          <h1>TETRIS <span>3D</span></h1>
+        </div>
+
+        <div class="panel stats-panel">
+          <div class="stat">
+            <span class="label">Pontuação</span>
+            <strong id="score">0</strong>
+          </div>
+          <div class="stat">
+            <span class="label">Recorde</span>
+            <strong id="highscore">0</strong>
+          </div>
+          <div class="stat-row">
+            <div class="stat">
+              <span class="label">Linhas</span>
+              <strong id="lines">0</strong>
+            </div>
+            <div class="stat">
+              <span class="label">Nível</span>
+              <strong id="level">1</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel preview-row">
+          <div class="preview-box">
+            <span class="label">Próxima</span>
+            <canvas id="next-canvas" width="96" height="96"></canvas>
+          </div>
+          <div class="preview-box">
+            <span class="label">Guardada</span>
+            <canvas id="hold-canvas" width="96" height="96"></canvas>
+          </div>
+        </div>
+      </aside>
+
+      <aside class="hud hud-right">
+        <div class="panel actions-panel">
+          <button id="btn-pause" class="btn btn-primary" type="button">Pausar (P)</button>
+          <button id="btn-camera" class="btn" type="button">Câmera: 3D Clássica (C)</button>
+          <button id="btn-mute" class="btn" type="button">Som: Ligado (M)</button>
+          <button id="btn-restart" class="btn btn-danger" type="button">Reiniciar (R)</button>
+        </div>
+
+        <div class="panel controls-panel">
+          <h2>Controles</h2>
+          <ul>
+            <li><kbd>←</kbd><kbd>→</kbd> ou <kbd>A</kbd><kbd>D</kbd><span>Mover</span></li>
+            <li><kbd>↑</kbd> / <kbd>W</kbd> / <kbd>Z</kbd><span>Girar</span></li>
+            <li><kbd>↓</kbd> ou <kbd>S</kbd><span>Descer rápido</span></li>
+            <li><kbd>Espaço</kbd><span>Queda instantânea</span></li>
+            <li><kbd>Shift</kbd> ou <kbd>E</kbd><span>Guardar peça</span></li>
+            <li><kbd>Mouse</kbd><span>Girar / Zoom 3D</span></li>
+          </ul>
+        </div>
+      </aside>
+
+      <div id="overlay" class="overlay hidden">
+        <div class="overlay-card">
+          <h2 id="overlay-title">Pausado</h2>
+          <p id="overlay-subtitle">Pressione P para continuar</p>
+          <button id="overlay-btn" class="btn btn-primary" type="button">Continuar</button>
+        </div>
+      </div>
+
+      <div id="toast" class="toast hidden"></div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
