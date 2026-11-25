@@ -1,0 +1,181 @@
+# Documentação Completa — My Games
+
+Guia técnico e de uso completo de todos os projetos do repositório `my_games`, com foco principal no **CS 2D — Arena Tática (Single-Player)** e referência detalhada de todos os módulos, controles, testes automatizados e fluxo Git.
+
+---
+
+## 1. Estrutura Geral do Repositório
+
+```text
+my_games/
+├── jogar_cs_2d.bat               # Atalho direto no Windows para abrir o CS 2D (single-player)
+├── README.md                     # Página inicial com destaque no CS 2D
+├── .gitignore                    # Ignora __pycache__, *.exe, .godot/, etc.
+├── docs/
+│   └── DOCUMENTACAO.md           # Esta documentação completa
+├── jogo_cs_2d/                   # [FOCO ATUAL] CS 2D Single-Player (Python + Tkinter)
+│   ├── cs_2d.py
+│   ├── cs_engine.py
+│   ├── test_cs_engine.py
+│   └── README.md
+├── jogo_da_forca/                # Jogo da Forca: 100 palavras + cronômetro de 20s
+│   ├── forca.py
+│   ├── hangman_engine.py
+│   ├── test_hangman_engine.py
+│   └── README.md
+├── jogo_de_carro/                # Jogo de Carro: 3 faixas, 10 níveis e tráfego dinâmico
+│   ├── carro.py
+│   ├── car_game_engine.py
+│   ├── test_car_game_engine.py
+│   └── README.md
+├── jogo_de_nave/                 # Jogo de Nave: 4 direções, 3 corações, 3 níveis e bônus 20s
+│   ├── nave.py
+│   ├── space_game_engine.py
+│   ├── test_space_game_engine.py
+│   └── README.md
+├── jogo_da_cobrinha/             # Jogo da Cobrinha: crescimento, objetos e cobras rivais
+│   ├── cobrinha.py
+│   ├── snake_game_engine.py
+│   ├── test_snake_game_engine.py
+│   └── README.md
+├── python/                       # Cronômetro em Python (Tkinter)
+│   ├── cronometro.py
+│   ├── stopwatch_engine.py
+│   ├── test_stopwatch_engine.py
+│   └── README.md
+├── cpp/                          # Cronômetro em C++17 (Win32 API)
+│   ├── main.cpp
+│   ├── stopwatch_engine.hpp
+│   ├── stopwatch_engine.cpp
+│   ├── test_stopwatch_engine.cpp
+│   ├── build.ps1
+│   └── README.md
+└── jogo_cs_2d_godot/             # Base futura Multiplayer ENet/UDP em Godot 4
+    ├── project.godot
+    ├── scenes/
+    ├── scripts/
+    └── README.md
+```
+
+---
+
+## 2. CS 2D — Arena Tática (Single-Player com 2 Oponentes)
+
+**Pasta:** `jogo_cs_2d/`  
+**Atalho direto:** `jogar_cs_2d.bat` (na raiz do repositório)
+
+### 2.1 Visão geral da jogabilidade
+- Você joga como o **CT** (azul) contra **2 oponentes TR** (vermelhos) em um mapa tático compacto (`760×540` pixels).
+- O mapa possui paredes de contorno, muros laterais e caixas centrais/laterais de cobertura (`build_small_map()`).
+- Os movimentos seguem `WASD` com deslizamento suave ao encostar em paredes ou caixas (`_move_circle_with_slide`).
+- A visão e a mira seguem o **mouse em 360°**, com um **cone de visão 2D** recortado pelas paredes (`cast_ray`) e linha laser até o primeiro obstáculo.
+- Os 2 bots oponentes usam verificação real de linha de visão (`has_line_of_sight`) antes de atirar: eles patrulham quando estão fora de visão e fazem *strafe* lateral durante o combate.
+
+### 2.2 Controles
+- `W` / `S` / `A` / `D`: movimentação para frente (cima), trás (baixo), esquerda e direita.
+- `Mouse`: mira e orientação do cone de visão.
+- `Botão Esquerdo do Mouse`: disparar (clique único ou segurando).
+- `R`: recarregar o pente (`15` balas, duração `1.25s`).
+- `P`: pausar ou retomar o round.
+- `Enter`: iniciar o próximo round após vitória ou derrota.
+
+### 2.3 Arquitetura e classes principais (`jogo_cs_2d/cs_engine.py`)
+- `RectObstacle`: representa paredes (`"wall"`) e caixas (`"crate"`).
+- `InputState`: snapshot das teclas `W/A/S/D`, posição do mouse, disparo e recarga.
+- `Projectile`: projéteis de jogador (`damage=34`, velocidade `760 px/s`) e dos bots (`damage=18`, velocidade `520 px/s`), com checagem por segmento (`segment_intersects_rect`) para evitar atravessar paredes.
+- `Opponent`: estado de cada um dos 2 bots (`hp=100`, `ammo=10`, patrulha, *strafe* e recarga).
+- `CS2DEngine`: motor independente de interface gráfica, facilitando testes unitários determinísticos (`test_cs_engine.py`) e futuras expansões (novas armas, bots ou mapas).
+- `CS2DApp` (`jogo_cs_2d/cs_2d.py`): renderiza a arena em `tk.Canvas` (~60 FPS via `after(16, ...)`), HUD de HP/Munição/Oponentes/Placar, cone de visão e barra de recarga.
+
+### 2.4 Parâmetros fáceis de ajustar (`jogo_cs_2d/cs_engine.py`)
+- Tamanho da arena: `MAP_WIDTH = 760.0`, `MAP_HEIGHT = 540.0`
+- Jogador: `PLAYER_SPEED = 215.0`, `PLAYER_MAX_HP = 100`, `MAGAZINE_SIZE = 15`, `RELOAD_DURATION_SEC = 1.25`, `PLAYER_FIRE_COOLDOWN = 0.16`
+- Oponentes: `ENEMY_COUNT = 2`, `ENEMY_SPEED = 145.0`, `ENEMY_MAX_HP = 100`, `ENEMY_FIRE_COOLDOWN = 0.48`, `ENEMY_MAGAZINE = 10`
+
+---
+
+## 3. Outros Jogos em Python (Tkinter)
+
+### 3.1 Jogo da Forca (`jogo_da_forca/`)
+- **Arquivos:** `forca.py` (`ForcaApp`), `hangman_engine.py` (`HangmanEngine`), `test_hangman_engine.py`.
+- **Regras:** banco de **100 palavras únicas** divididas em 10 categorias com dicas; até `6` erros; **cronômetro de 20 segundos** por letra (`DEFAULT_TURN_SECONDS = 20`) que registra 1 erro automático se o tempo expirar (`record_timeout`).
+- **Controles:** teclado virtual clicável (`A–Z`), teclado físico e `Enter` para sortear nova palavra.
+
+### 3.2 Jogo de Carro — 3 Faixas (`jogo_de_carro/`)
+- **Arquivos:** `carro.py` (`CarroApp`), `car_game_engine.py` (`CarGameEngine`), `test_car_game_engine.py`.
+- **Regras:** pista de **3 faixas** com **10 níveis de velocidade** (`380 px/s` no Nível 1 até `695 px/s` no Nível 10). Os carros mudam de estilo (`sedan`, `esportivo`, `pickup`, `van`, `taxi`), cor e velocidade continuamente, podendo trocar de faixa mantendo sempre ao menos uma passagem livre.
+- **Controles:** `←` / `→` (ou `A` / `D`) para mudar de faixa, `↑` / `↓` para avançar/recuar, `1`–`9` e `0` (nível 10), `P`/`Espaço` (pausa), `Enter`/`R` (reiniciar).
+
+### 3.3 Jogo de Nave (`jogo_de_nave/`)
+- **Arquivos:** `nave.py` (`NaveApp`), `space_game_engine.py` (`SpaceGameEngine`), `test_space_game_engine.py`.
+- **Regras:** movimentação livre nas 4 direções, **3 vidas em corações**, **3 níveis de tiro** (evolui ao abater inimigos sem morrer e volta ao nível 1 ao perder vida), **bônus de Arma Especial e Bomba com limite de 20 segundos** (`SPECIAL_BONUS_LIMIT_SEC = 20.0`) e inimigos variados (`scout`, `zigzag`, `shooter` e **naves malucas** erráticas).
+- **Controles:** setas ou `WASD` (mover), `Espaço` ou **Auto-Tiro** (atirar), `B` (detonar bomba), `P` (pausa), `Enter`/`R` (reiniciar).
+
+### 3.4 Jogo da Cobrinha (`jogo_da_cobrinha/`)
+- **Arquivos:** `cobrinha.py` (`CobrinhaApp`), `snake_game_engine.py` (`SnakeGameEngine`), `test_snake_game_engine.py`.
+- **Regras:** grade `28×24`, crescimento ao comer (comida normal `+1`, comida bônus dourada a cada 5 acertos `+2`), **14 objetos de obstáculo** no campo e **2 cobras rivais autônomas** que também circulam pela arena.
+- **Controles:** setas ou `WASD` (mover com buffer de curvas rápidas), `P`/`Espaço` (pausa), `Enter`/`R` (reiniciar).
+
+---
+
+## 4. Utilitários (Cronômetros)
+
+### 4.1 Cronômetro Python (`python/`)
+- **Arquivos:** `cronometro.py` (`CronometroApp`), `stopwatch_engine.py` (`StopwatchEngine`), `test_stopwatch_engine.py`.
+- **Recursos:** contagem precisa com `time.perf_counter`, voltas com destaque automático de volta mais rápida/lenta e atalhos `Espaço` (Iniciar/Pausar), `V` (Volta) e `R` (Zerar).
+
+### 4.2 Cronômetro C++ Win32 (`cpp/`)
+- **Arquivos:** `main.cpp`, `stopwatch_engine.hpp`, `stopwatch_engine.cpp`, `test_stopwatch_engine.cpp`, `build.ps1`.
+- **Recursos:** interface nativa Win32/GDI com *double buffering* e tema escuro equivalente à versão Python.
+- **Compilação:** execute `.\cpp\build.ps1` (usa `g++ -std=c++17 -O2 -Wall -Wextra -municode -mwindows -static`).
+
+---
+
+## 5. Base Futura Multiplayer em Godot 4 (`jogo_cs_2d_godot/`)
+
+- Utiliza **Godot 4.2+** (testado na importação headless com **Godot 4.7.2**) e **`ENetMultiplayerPeer` (UDP)** com servidor autoritativo.
+- Inclui lobby Host/Cliente, `MultiplayerSpawner`, `MultiplayerSynchronizer`, sombras 2D com `PointLight2D` + `LightOccluder2D` e opção de incluir os 2 bots oponentes.
+- Para abrir no editor:
+  ```powershell
+  godot --editor --path .\jogo_cs_2d_godot
+  ```
+
+---
+
+## 6. Testes Automatizados
+
+Todos os motores de lógica dos jogos e cronômetros são desacoplados da interface gráfica e possuem testes unitários:
+
+```powershell
+# Python: rodar testes de cada módulo
+python -m unittest discover -s jogo_cs_2d -v
+python -m unittest discover -s jogo_da_forca -v
+python -m unittest discover -s jogo_de_carro -v
+python -m unittest discover -s jogo_de_nave -v
+python -m unittest discover -s jogo_da_cobrinha -v
+python -m unittest discover -s python -v
+
+# C++: compilar e executar suíte de testes
+.\cpp\build.ps1
+
+# Godot 4: validação headless de importação e carregamento
+godot_console --path .\jogo_cs_2d_godot --headless --import --quit
+```
+
+---
+
+## 7. Fluxo Git para Continuar em Outro PC
+
+```powershell
+# Primeira vez em outro computador
+git clone https://github.com/nilknarfsam/my_games.git
+cd my_games
+
+# Para atualizar com as últimas alterações
+git pull origin main
+
+# Para salvar novas alterações no GitHub
+git add .
+git commit -m "Sua mensagem"
+git push origin main
+```

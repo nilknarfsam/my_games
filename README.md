@@ -2,6 +2,8 @@
 
 Repositório pessoal de jogos 2D e utilitários desenvolvidos em **Python (Tkinter)**, **C++ (Win32)** e **Godot 4**, com foco principal atual no **CS 2D — Modo Single-Player com 2 Oponentes**.
 
+> 📘 **Documentação completa do repositório (arquitetura, regras, parâmetros e testes):** [`docs/DOCUMENTACAO.md`](docs/DOCUMENTACAO.md)
+
 ---
 
 ## 🎯 Projeto em Destaque: CS 2D — Arena Tática (Single-Player)
@@ -33,8 +35,13 @@ Um jogo de tiro tático em 2D com visão de cima inspirado em *Counter-Strike*, 
 
 ### Como jogar e testar o CS 2D
 
+- **Atalho direto (Windows)**: dê um duplo clique em [`jogar_cs_2d.bat`](jogar_cs_2d.bat) na raiz do repositório (ou execute `.\jogar_cs_2d.bat` no terminal).
+
 ```powershell
-# Executar o jogo
+# Executar direto pelo atalho
+.\jogar_cs_2d.bat
+
+# Ou via Python
 python .\jogo_cs_2d\cs_2d.py
 
 # Rodar os testes unitários
