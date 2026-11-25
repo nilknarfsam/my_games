@@ -116,8 +116,38 @@ export class ChessEngine {
     this.captured = { w: [], b: [] };
     this.moveLog = [];
     this.history = [];
+    this.positionCounts = {};
     this.status = 'playing';
     this.winner = null;
+
+    const initialKey = this.#positionKey();
+    this.positionCounts[initialKey] = 1;
+  }
+
+  isGameOver() {
+    return (
+      this.status === 'checkmate' ||
+      this.status === 'stalemate' ||
+      this.status === 'draw_50' ||
+      this.status === 'draw_insufficient' ||
+      this.status === 'draw_repetition'
+    );
+  }
+
+  #positionKey() {
+    let key = `${this.turn}|`;
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const p = this.board[r][c];
+        key += p ? `${p.color}${p.type}` : '.';
+      }
+    }
+    const { wK, wQ, bK, bQ } = this.castling;
+    key += `|${wK ? 'K' : ''}${wQ ? 'Q' : ''}${bK ? 'k' : ''}${bQ ? 'q' : ''}`;
+    if (this.enPassant) {
+      key += `|${this.enPassant.r},${this.enPassant.c}`;
+    }
+    return key;
   }
 
   cloneState() {
@@ -514,7 +544,20 @@ export class ChessEngine {
     return false;
   }
 
-  #updateStatus() {
+  getAvailableCastles(color = this.turn) {
+    if (color !== this.turn || this.isGameOver()) {
+      return { kingSide: null, queenSide: null };
+    }
+    const king = this.findKing(color);
+    if (!king) return { kingSide: null, queenSide: null };
+    const kingMoves = this.getLegalMovesForSquare(king.r, king.c);
+    return {
+      kingSide: kingMoves.find((m) => m.castle === 'K') ?? null,
+      queenSide: kingMoves.find((m) => m.castle === 'Q') ?? null,
+    };
+  }
+
+  #updateStatus(currentPosKey = null) {
     const legal = this.getAllLegalMoves(this.turn);
     const inCheck = this.isInCheck(this.turn);
     if (legal.length === 0) {
@@ -525,6 +568,11 @@ export class ChessEngine {
         this.status = 'stalemate';
         this.winner = null;
       }
+      return;
+    }
+    if (currentPosKey && (this.positionCounts[currentPosKey] ?? 0) >= 3) {
+      this.status = 'draw_repetition';
+      this.winner = null;
       return;
     }
     if (this.halfMoveClock >= 100) {
@@ -580,12 +628,7 @@ export class ChessEngine {
   }
 
   makeMove(fromR, fromC, toR, toC, promotion = 'q') {
-    if (
-      this.status === 'checkmate' ||
-      this.status === 'stalemate' ||
-      this.status === 'draw_50' ||
-      this.status === 'draw_insufficient'
-    ) {
+    if (this.isGameOver()) {
       return null;
     }
 
@@ -605,9 +648,13 @@ export class ChessEngine {
       allLegalBefore,
     );
 
-    this.history.push(snap);
     const { capturedPiece } = this.#applyRawMove(chosen);
-    this.#updateStatus();
+    const posKey = this.#positionKey();
+    this.positionCounts[posKey] = (this.positionCounts[posKey] ?? 0) + 1;
+    snap.addedPosKey = posKey;
+    this.history.push(snap);
+
+    this.#updateStatus(posKey);
 
     let san = sanBase;
     if (this.status === 'checkmate') san += '#';
@@ -628,6 +675,11 @@ export class ChessEngine {
   undo() {
     if (this.history.length === 0) return false;
     const prev = this.history.pop();
+    if (prev.addedPosKey) {
+      const nextCount = (this.positionCounts[prev.addedPosKey] ?? 1) - 1;
+      if (nextCount <= 0) delete this.positionCounts[prev.addedPosKey];
+      else this.positionCounts[prev.addedPosKey] = nextCount;
+    }
     this.restoreState(prev);
     this.moveLog.pop();
     return true;
@@ -637,11 +689,7 @@ export class ChessEngine {
     if (this.status === 'checkmate') {
       return this.winner === 'w' ? 99999 : -99999;
     }
-    if (
-      this.status === 'stalemate' ||
-      this.status === 'draw_50' ||
-      this.status === 'draw_insufficient'
-    ) {
+    if (this.isGameOver()) {
       return 0;
     }
 
@@ -671,13 +719,7 @@ function orderMoves(engine, moves) {
 }
 
 function minimax(engine, depth, alpha, beta, maximizingWhite) {
-  if (
-    depth === 0 ||
-    engine.status === 'checkmate' ||
-    engine.status === 'stalemate' ||
-    engine.status === 'draw_50' ||
-    engine.status === 'draw_insufficient'
-  ) {
+  if (depth === 0 || engine.isGameOver()) {
     const evalScore = engine.evaluateBoard();
     // Prefer quicker checkmates
     if (evalScore > 90000) return evalScore + depth;

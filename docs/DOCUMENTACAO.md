@@ -29,6 +29,7 @@ my_games/
 ├── jogo_xadrez_3d/               # Xadrez 3D (Three.js + Vite + IA Minimax)
 │   ├── index.html
 │   ├── package.json
+│   ├── ROADMAP.md
 │   ├── vite.config.js
 │   ├── src/
 │   │   ├── main.js
@@ -174,8 +175,8 @@ my_games/
 
 ### 5.2 Xadrez 3D (`jogo_xadrez_3d/`)
 - **Atalho direto:** `jogar_xadrez_3d.bat` (na raiz do repositório).
-- **Arquivos principais:** `src/chess_engine.js` (`ChessEngine`, `chooseAIMove`), `src/chess_engine.test.js`, `src/piece_meshes.js`, `src/main.js`, `src/sound.js`, `index.html`, `src/style.css`.
-- **Recursos:** peças Staunton esculpidas em 3D (`LatheGeometry` e `ExtrudeGeometry`), regras oficiais completas (roque curto/longo, *en passant*, promoção de peão com escolha de peça, xeque, xeque-mate, afogamento, regra dos 50 lances e material insuficiente), modo **Contra IA** (Brancas ou Pretas em 3 dificuldades: Fácil, Média e Difícil usando Minimax + Alpha-Beta) e modo **2 Jogadores (Local)**, seleção por *raycasting*, histórico em notação algébrica (`SAN`), botão Desfazer (`U`) e câmera livre/invertível (`C`).
+- **Arquivos principais:** `src/chess_engine.js` (`ChessEngine`, `chooseAIMove`), `src/chess_engine.test.js`, `src/piece_meshes.js`, `src/main.js`, `src/sound.js`, `index.html`, `src/style.css`, `ROADMAP.md`.
+- **Recursos:** peças Staunton esculpidas em 3D (`LatheGeometry` e `ExtrudeGeometry`), regras oficiais completas (roque curto/longo com animação simultânea Rei+Torre, *en passant*, promoção de peão, xeque, xeque-mate, afogamento, repetição tripla, regra dos 50 lances e material insuficiente), roque intuitivo (Rei→casa, Rei→Torre, Torre→Rei ou botões contextuais na HUD), relógio (`Sem Limite`, `Blitz 5 min`, `Rápido 10 min`), barra de avaliação, dica de jogada (`H`), modo **Contra IA** (3 dificuldades) e **2 Jogadores (Local)**, histórico em notação algébrica (`SAN`) e Desfazer (`U`).
 
 ---
 
@@ -216,18 +217,22 @@ godot_console --path .\jogo_cs_2d_godot --headless --import --quit
 
 ---
 
-## 8. Fluxo Git para Continuar em Outro PC
+## 8. Fluxo Git Padrão (Branches + Pull Request)
+
+Adotamos o fluxo de **branch de feature + Pull Request** para testar novas melhorias antes do merge na `main`:
 
 ```powershell
-# Primeira vez em outro computador
-git clone https://github.com/nilknarfsam/my_games.git
-cd my_games
-
-# Para atualizar com as últimas alterações
+# 1. Criar uma branch a partir da main atualizada
+git checkout main
 git pull origin main
+git checkout -b feat/nome-da-melhoria
 
-# Para salvar novas alterações no GitHub
+# 2. Implementar, rodar testes e build
+# (ex.: npm test && npm run build)
+
+# 3. Commitar, enviar a branch e abrir Pull Request via GitHub CLI
 git add .
-git commit -m "Sua mensagem"
-git push origin main
+git commit -m "Descricao clara da melhoria"
+git push -u origin feat/nome-da-melhoria
+gh pr create --base main --head feat/nome-da-melhoria --title "Titulo da PR" --body "Resumo e checklist de testes"
 ```

@@ -15,26 +15,42 @@ const engine = new ChessEngine();
 const sound = new ChessSound();
 
 // State
-let gameMode = 'ai-b'; // 'ai-b' (human white vs AI black), 'ai-w', 'pvp'
+let gameMode = 'ai-b';
 let aiDifficulty = 'medium';
+let timeControlSec = 0;
+let clocks = { w: 0, b: 0 };
+let timeoutWinner = null;
 let selectedSquare = null;
 let legalMovesForSelected = [];
+let hintMove = null;
 let pendingPromotion = null;
 let aiTimeout = null;
 let cameraSide = 'w';
-let activeAnimation = null;
+let activeAnimations = [];
 
 // --- DOM Elements ---
 const canvasEl = document.getElementById('scene');
 const turnDot = document.getElementById('turn-dot');
 const turnText = document.getElementById('turn-text');
+const evalLabel = document.getElementById('eval-label');
+const evalFill = document.getElementById('eval-fill');
 const statusText = document.getElementById('status-text');
+const clocksPanel = document.getElementById('clocks-panel');
+const clockWhiteBox = document.getElementById('clock-white-box');
+const clockBlackBox = document.getElementById('clock-black-box');
+const clockWhiteEl = document.getElementById('clock-white');
+const clockBlackEl = document.getElementById('clock-black');
 const modeSelect = document.getElementById('mode-select');
 const difficultyField = document.getElementById('difficulty-field');
 const difficultySelect = document.getElementById('difficulty-select');
+const timeSelect = document.getElementById('time-select');
 const capWhiteEl = document.getElementById('cap-white');
 const capBlackEl = document.getElementById('cap-black');
 const moveHistoryEl = document.getElementById('move-history');
+const castleActionsEl = document.getElementById('castle-actions');
+const btnCastleK = document.getElementById('btn-castle-k');
+const btnCastleQ = document.getElementById('btn-castle-q');
+const btnHint = document.getElementById('btn-hint');
 const btnNew = document.getElementById('btn-new');
 const btnUndo = document.getElementById('btn-undo');
 const btnFlip = document.getElementById('btn-flip');
@@ -96,7 +112,6 @@ const rimLight = new THREE.PointLight(0x38bdf8, 18, 26);
 rimLight.position.set(-7, 5, -7);
 scene.add(rimLight);
 
-// --- Coordinate helpers ---
 function squareToWorld(r, c) {
   return { x: c - 3.5, z: r - 3.5 };
 }
@@ -109,7 +124,6 @@ const piecesGroup = new THREE.Group();
 scene.add(piecesGroup);
 
 function buildBoard() {
-  // Pedestal floor
   const tableGeo = new THREE.PlaneGeometry(50, 50);
   const tableMat = new THREE.MeshStandardMaterial({
     color: 0x0b1120,
@@ -122,7 +136,6 @@ function buildBoard() {
   table.receiveShadow = true;
   scene.add(table);
 
-  // Wooden frame
   const frameGeo = new RoundedBoxGeometry(9.2, 0.45, 9.2, 3, 0.08);
   const frameMat = new THREE.MeshStandardMaterial({
     color: 0x3a2417,
@@ -135,7 +148,6 @@ function buildBoard() {
   frame.castShadow = true;
   scene.add(frame);
 
-  // 64 Squares
   const sqGeo = new THREE.BoxGeometry(1, 0.12, 1);
   for (let r = 0; r < 8; r++) {
     for (let c = 0; c < 8; c++) {
@@ -158,7 +170,6 @@ function buildBoard() {
     }
   }
 
-  // Coordinate labels on border
   const addCoordLabel = (text, x, z) => {
     const cvs = document.createElement('canvas');
     cvs.width = 64;
@@ -191,7 +202,7 @@ buildBoard();
 // --- Piece Mesh Management ---
 const boardPieceMeshes = Array.from({ length: 8 }, () => Array(8).fill(null));
 
-function rebuildPieceMeshes(skipTarget = null) {
+function rebuildPieceMeshes(skipSquares = []) {
   while (piecesGroup.children.length > 0) {
     piecesGroup.remove(piecesGroup.children[0]);
   }
@@ -210,7 +221,7 @@ function rebuildPieceMeshes(skipTarget = null) {
           child.userData = { square: { r, c } };
         }
       });
-      if (skipTarget && skipTarget.r === r && skipTarget.c === c) {
+      if (skipSquares.some((s) => s.r === r && s.c === c)) {
         mesh.visible = false;
       }
       piecesGroup.add(mesh);
@@ -228,13 +239,31 @@ function clearIndicators() {
   }
 }
 
+function spawnRingMarker(r, c, color, innerR, outerR, userData = {}) {
+  const { x, z } = squareToWorld(r, c);
+  const geo = new THREE.RingGeometry(innerR, outerR, 28);
+  const mat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.88,
+    side: THREE.DoubleSide,
+  });
+  const marker = new THREE.Mesh(geo, mat);
+  marker.rotation.x = -Math.PI / 2;
+  marker.position.set(x, 0.053, z);
+  marker.userData = { square: { r, c }, ...userData };
+  scene.add(marker);
+  indicatorMeshes.push(marker);
+}
+
 function updateBoardHighlights() {
   clearIndicators();
 
   const lastRecord = engine.moveLog[engine.moveLog.length - 1];
-  const kingInCheck = engine.status === 'check' || engine.status === 'checkmate'
-    ? engine.findKing(engine.turn)
-    : null;
+  const kingInCheck =
+    engine.status === 'check' || engine.status === 'checkmate'
+      ? engine.findKing(engine.turn)
+      : null;
 
   for (let r = 0; r < 8; r++) {
     for (let c = 0; c < 8; c++) {
@@ -252,6 +281,15 @@ function updateBoardHighlights() {
         sq.material.emissiveIntensity = 0.25;
       }
 
+      if (
+        hintMove &&
+        ((hintMove.fromR === r && hintMove.fromC === c) ||
+          (hintMove.toR === r && hintMove.toC === c))
+      ) {
+        sq.material.emissive.setHex(0x10b981);
+        sq.material.emissiveIntensity = 0.55;
+      }
+
       if (selectedSquare && selectedSquare.r === r && selectedSquare.c === c) {
         sq.material.emissive.setHex(0x38bdf8);
         sq.material.emissiveIntensity = 0.5;
@@ -265,6 +303,14 @@ function updateBoardHighlights() {
   }
 
   for (const move of legalMovesForSelected) {
+    if (move.castle) {
+      // Golden highlight on castling destination AND on the participating rook
+      spawnRingMarker(move.toR, move.toC, 0xfbbf24, 0.2, 0.42, { castleMove: move });
+      const rookCol = move.castle === 'K' ? 7 : 0;
+      spawnRingMarker(move.toR, rookCol, 0xfbbf24, 0.34, 0.45, { castleMove: move });
+      continue;
+    }
+
     const { x, z } = squareToWorld(move.toR, move.toC);
     const isCapture = Boolean(move.capture || move.isEnPassant);
     const geo = isCapture
@@ -273,7 +319,7 @@ function updateBoardHighlights() {
     const mat = new THREE.MeshBasicMaterial({
       color: isCapture ? 0xf43f5e : 0x38bdf8,
       transparent: true,
-      opacity: 0.8,
+      opacity: 0.82,
       side: THREE.DoubleSide,
     });
     const marker = new THREE.Mesh(geo, mat);
@@ -283,6 +329,60 @@ function updateBoardHighlights() {
     scene.add(marker);
     indicatorMeshes.push(marker);
   }
+
+  // If user selected a Rook and castling with that Rook is available, mark the King with a golden ring!
+  if (selectedSquare) {
+    const selPiece = engine.board[selectedSquare.r][selectedSquare.c];
+    if (selPiece?.type === 'r') {
+      const castles = engine.getAvailableCastles(selPiece.color);
+      const homeRow = selPiece.color === 'w' ? 7 : 0;
+      if (selectedSquare.r === homeRow && selectedSquare.c === 7 && castles.kingSide) {
+        spawnRingMarker(homeRow, 4, 0xfbbf24, 0.34, 0.45, { castleMove: castles.kingSide });
+      } else if (selectedSquare.r === homeRow && selectedSquare.c === 0 && castles.queenSide) {
+        spawnRingMarker(homeRow, 4, 0xfbbf24, 0.34, 0.45, { castleMove: castles.queenSide });
+      }
+    }
+  }
+}
+
+function formatClock(seconds) {
+  const s = Math.max(0, Math.ceil(seconds));
+  const mins = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${String(mins).padStart(2, '0')}:${String(rem).padStart(2, '0')}`;
+}
+
+function isAnyGameOver() {
+  return Boolean(timeoutWinner) || engine.isGameOver();
+}
+
+function updateClocksUI() {
+  if (timeControlSec <= 0) {
+    clocksPanel.classList.add('hidden');
+    return;
+  }
+  clocksPanel.classList.remove('hidden');
+  clockWhiteEl.textContent = formatClock(clocks.w);
+  clockBlackEl.textContent = formatClock(clocks.b);
+
+  clockWhiteBox.classList.toggle('active', !isAnyGameOver() && engine.turn === 'w');
+  clockBlackBox.classList.toggle('active', !isAnyGameOver() && engine.turn === 'b');
+  clockWhiteBox.classList.toggle('low', clocks.w > 0 && clocks.w <= 20);
+  clockBlackBox.classList.toggle('low', clocks.b > 0 && clocks.b <= 20);
+}
+
+function updateEvaluationBar() {
+  const cp = engine.evaluateBoard();
+  if (engine.status === 'checkmate') {
+    evalLabel.textContent = engine.winner === 'w' ? '+Mate' : '-Mate';
+    evalFill.style.width = engine.winner === 'w' ? '100%' : '0%';
+    return;
+  }
+  const pawns = cp / 100;
+  evalLabel.textContent = `${pawns > 0 ? '+' : ''}${pawns.toFixed(1)}`;
+  const clamped = Math.max(-10, Math.min(10, pawns));
+  const pct = 50 + (clamped / 10) * 46;
+  evalFill.style.width = `${pct.toFixed(1)}%`;
 }
 
 function updateHUD() {
@@ -290,12 +390,20 @@ function updateHUD() {
   turnDot.className = `dot ${isWhiteTurn ? 'dot-white' : 'dot-black'}`;
   turnText.textContent = isWhiteTurn ? 'Brancas' : 'Pretas';
 
+  updateEvaluationBar();
+  updateClocksUI();
+
   statusText.className = 'status-sub';
-  if (engine.status === 'checkmate') {
+  if (timeoutWinner) {
+    statusText.textContent = `Tempo esgotado! Vitória das ${timeoutWinner === 'w' ? 'Brancas' : 'Pretas'}.`;
+    statusText.classList.add('check');
+  } else if (engine.status === 'checkmate') {
     statusText.textContent = `Xeque-Mate! Vitória das ${engine.winner === 'w' ? 'Brancas' : 'Pretas'}.`;
     statusText.classList.add('check');
   } else if (engine.status === 'stalemate') {
     statusText.textContent = 'Empate por afogamento.';
+  } else if (engine.status === 'draw_repetition') {
+    statusText.textContent = 'Empate por repetição tripla.';
   } else if (engine.status === 'draw_insufficient') {
     statusText.textContent = 'Empate por material insuficiente.';
   } else if (engine.status === 'draw_50') {
@@ -308,6 +416,13 @@ function updateHUD() {
   } else {
     statusText.textContent = selectedSquare ? 'Escolha a casa de destino' : 'Selecione uma peça para jogar';
   }
+
+  // Contextual castling buttons
+  const canHumanAct = !isAnyGameOver() && !isAITurn() && activeAnimations.length === 0;
+  const castles = canHumanAct ? engine.getAvailableCastles(engine.turn) : { kingSide: null, queenSide: null };
+  btnCastleK.classList.toggle('hidden', !castles.kingSide);
+  btnCastleQ.classList.toggle('hidden', !castles.queenSide);
+  castleActionsEl.classList.toggle('hidden', !castles.kingSide && !castles.queenSide);
 
   capWhiteEl.textContent =
     engine.captured.w.length > 0
@@ -328,15 +443,16 @@ function updateHUD() {
   }
   moveHistoryEl.scrollTop = moveHistoryEl.scrollHeight;
 
-  btnUndo.disabled = engine.history.length === 0 || Boolean(activeAnimation);
+  btnUndo.disabled = engine.history.length === 0 || activeAnimations.length > 0;
+  btnHint.disabled = !canHumanAct;
   btnMute.textContent = sound.muted ? 'Som: Mudo (M)' : 'Som: Ligado (M)';
   difficultyField.style.display = gameMode === 'pvp' ? 'none' : 'flex';
 
-  const isGameOver = ['checkmate', 'stalemate', 'draw_50', 'draw_insufficient'].includes(
-    engine.status,
-  );
-  if (isGameOver) {
-    if (engine.status === 'checkmate') {
+  if (isAnyGameOver()) {
+    if (timeoutWinner) {
+      gameOverTitle.textContent = 'Tempo Esgotado!';
+      gameOverSubtitle.textContent = `As ${timeoutWinner === 'w' ? 'Brancas' : 'Pretas'} venceram no relógio!`;
+    } else if (engine.status === 'checkmate') {
       gameOverTitle.textContent = 'Xeque-Mate!';
       gameOverSubtitle.textContent = `As ${engine.winner === 'w' ? 'Brancas' : 'Pretas'} venceram!`;
     } else {
@@ -357,27 +473,41 @@ function isAITurn() {
 
 function setCameraSide(side) {
   cameraSide = side;
-  if (side === 'w') {
-    camera.position.set(0, 9.5, 10.5);
-  } else {
-    camera.position.set(0, 9.5, -10.5);
-  }
+  camera.position.set(0, 9.5, side === 'w' ? 10.5 : -10.5);
   controls.target.set(0, 0.2, 0);
   controls.update();
 }
 
-function performMoveWithAnimation(fromR, fromC, toR, toC, promotion = 'q') {
-  const movingMesh = boardPieceMeshes[fromR][fromC];
+function enqueuePieceAnimation(type, color, fromR, fromC, toR, toC, arcHeight = 0.45) {
   const fromPos = squareToWorld(fromR, fromC);
   const toPos = squareToWorld(toR, toC);
+  const animMesh = createChessPieceMesh(type, color);
+  animMesh.position.set(fromPos.x, 0.04, fromPos.z);
+  scene.add(animMesh);
+  activeAnimations.push({
+    mesh: animMesh,
+    startX: fromPos.x,
+    startZ: fromPos.z,
+    endX: toPos.x,
+    endZ: toPos.z,
+    arcHeight,
+    progress: 0,
+    duration: 0.24,
+    targetSquare: { r: toR, c: toC },
+  });
+}
 
+function performMoveWithAnimation(fromR, fromC, toR, toC, promotion = 'q') {
+  if (isAnyGameOver()) return false;
+  const movingMesh = boardPieceMeshes[fromR][fromC];
   const record = engine.makeMove(fromR, fromC, toR, toC, promotion);
   if (!record) return false;
 
   selectedSquare = null;
   legalMovesForSelected = [];
+  hintMove = null;
 
-  if (record.status === 'checkmate' || record.status === 'stalemate') {
+  if (record.status === 'checkmate' || record.status === 'stalemate' || record.status === 'draw_repetition') {
     sound.gameOver();
   } else if (record.status === 'check') {
     sound.check();
@@ -389,24 +519,24 @@ function performMoveWithAnimation(fromR, fromC, toR, toC, promotion = 'q') {
     sound.move();
   }
 
-  rebuildPieceMeshes({ r: toR, c: toC });
+  const skipSquares = [{ r: toR, c: toC }];
+  if (record.move.castle === 'K') {
+    skipSquares.push({ r: toR, c: 5 });
+  } else if (record.move.castle === 'Q') {
+    skipSquares.push({ r: toR, c: 3 });
+  }
+
+  rebuildPieceMeshes(skipSquares);
   updateBoardHighlights();
   updateHUD();
 
   if (movingMesh) {
-    const animMesh = createChessPieceMesh(record.piece.type, record.piece.color);
-    animMesh.position.set(fromPos.x, 0.04, fromPos.z);
-    scene.add(animMesh);
-    activeAnimation = {
-      mesh: animMesh,
-      startX: fromPos.x,
-      startZ: fromPos.z,
-      endX: toPos.x,
-      endZ: toPos.z,
-      progress: 0,
-      duration: 0.22,
-      targetSquare: { r: toR, c: toC },
-    };
+    enqueuePieceAnimation(record.piece.type, record.piece.color, fromR, fromC, toR, toC, 0.45);
+    if (record.move.castle === 'K') {
+      enqueuePieceAnimation('r', record.piece.color, toR, 7, toR, 5, 0.25);
+    } else if (record.move.castle === 'Q') {
+      enqueuePieceAnimation('r', record.piece.color, toR, 0, toR, 3, 0.25);
+    }
   } else {
     scheduleAIIfNeeded();
   }
@@ -416,14 +546,12 @@ function performMoveWithAnimation(fromR, fromC, toR, toC, promotion = 'q') {
 
 function scheduleAIIfNeeded() {
   clearTimeout(aiTimeout);
-  if (
-    !isAITurn() ||
-    ['checkmate', 'stalemate', 'draw_50', 'draw_insufficient'].includes(engine.status)
-  ) {
+  if (!isAITurn() || isAnyGameOver()) {
     return;
   }
   updateHUD();
   aiTimeout = setTimeout(() => {
+    if (isAnyGameOver()) return;
     const move = chooseAIMove(engine, aiDifficulty);
     if (move) {
       performMoveWithAnimation(move.fromR, move.fromC, move.toR, move.toC, move.promotion ?? 'q');
@@ -431,7 +559,7 @@ function scheduleAIIfNeeded() {
   }, 240);
 }
 
-// --- Mouse Raycasting (Distinguishes click vs OrbitControls drag) ---
+// --- Mouse Raycasting ---
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 let pointerDownPos = null;
@@ -444,19 +572,15 @@ canvasEl.addEventListener('pointerup', (e) => {
   if (!pointerDownPos) return;
   const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
   pointerDownPos = null;
-  if (dist > 6) return; // User was orbiting camera
-  if (activeAnimation || pendingPromotion || isAITurn()) return;
+  if (dist > 6) return;
+  if (activeAnimations.length > 0 || pendingPromotion || isAITurn() || isAnyGameOver()) return;
 
   const rect = canvasEl.getBoundingClientRect();
   pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
   raycaster.setFromCamera(pointer, camera);
-  const targets = [
-    ...indicatorMeshes,
-    ...piecesGroup.children,
-    ...squareMeshes.flat(),
-  ];
+  const targets = [...indicatorMeshes, ...piecesGroup.children, ...squareMeshes.flat()];
   const hits = raycaster.intersectObjects(targets, true);
   if (hits.length === 0) {
     selectedSquare = null;
@@ -466,12 +590,21 @@ canvasEl.addEventListener('pointerup', (e) => {
     return;
   }
 
+  let castleMove = null;
   let sq = null;
   for (const hit of hits) {
-    if (hit.object.userData?.square) {
-      sq = hit.object.userData.square;
+    if (hit.object.userData?.castleMove) {
+      castleMove = hit.object.userData.castleMove;
       break;
     }
+    if (!sq && hit.object.userData?.square) {
+      sq = hit.object.userData.square;
+    }
+  }
+
+  if (castleMove) {
+    performMoveWithAnimation(castleMove.fromR, castleMove.fromC, castleMove.toR, castleMove.toC);
+    return;
   }
   if (!sq) return;
 
@@ -480,6 +613,35 @@ canvasEl.addEventListener('pointerup', (e) => {
 
 function handleSquareClick(r, c) {
   if (selectedSquare) {
+    const selPiece = engine.board[selectedSquare.r][selectedSquare.c];
+    const clickedPiece = engine.board[r][c];
+
+    // Intuitive castling: King -> Rook OR Rook -> King
+    if (selPiece && clickedPiece && selPiece.color === clickedPiece.color) {
+      const castles = engine.getAvailableCastles(selPiece.color);
+      const homeRow = selPiece.color === 'w' ? 7 : 0;
+      if (selPiece.type === 'k' && clickedPiece.type === 'r' && r === homeRow) {
+        if (c === 7 && castles.kingSide) {
+          performMoveWithAnimation(homeRow, 4, homeRow, 6);
+          return;
+        }
+        if (c === 0 && castles.queenSide) {
+          performMoveWithAnimation(homeRow, 4, homeRow, 2);
+          return;
+        }
+      }
+      if (selPiece.type === 'r' && clickedPiece.type === 'k' && r === homeRow && c === 4) {
+        if (selectedSquare.c === 7 && castles.kingSide) {
+          performMoveWithAnimation(homeRow, 4, homeRow, 6);
+          return;
+        }
+        if (selectedSquare.c === 0 && castles.queenSide) {
+          performMoveWithAnimation(homeRow, 4, homeRow, 2);
+          return;
+        }
+      }
+    }
+
     const matchingMoves = legalMovesForSelected.filter((m) => m.toR === r && m.toC === c);
     if (matchingMoves.length > 0) {
       const needsPromotion = matchingMoves.some((m) => m.promotion);
@@ -528,15 +690,22 @@ document.querySelectorAll('.promo-btn').forEach((btn) => {
   });
 });
 
+function clearAnimations() {
+  while (activeAnimations.length > 0) {
+    const anim = activeAnimations.pop();
+    scene.remove(anim.mesh);
+  }
+}
+
 function startNewGame() {
   clearTimeout(aiTimeout);
-  if (activeAnimation) {
-    scene.remove(activeAnimation.mesh);
-    activeAnimation = null;
-  }
+  clearAnimations();
   engine.reset();
+  timeoutWinner = null;
+  clocks = { w: timeControlSec, b: timeControlSec };
   selectedSquare = null;
   legalMovesForSelected = [];
+  hintMove = null;
   pendingPromotion = null;
   promoModal.classList.add('hidden');
   setCameraSide(gameMode === 'ai-w' ? 'b' : 'w');
@@ -547,10 +716,10 @@ function startNewGame() {
 }
 
 function undoMove() {
-  if (activeAnimation || engine.history.length === 0) return;
+  if (activeAnimations.length > 0 || engine.history.length === 0) return;
   clearTimeout(aiTimeout);
+  timeoutWinner = null;
   if (gameMode !== 'pvp') {
-    // Undo both AI reply and human move if possible
     engine.undo();
     if (isAITurn() && engine.history.length > 0) {
       engine.undo();
@@ -560,9 +729,28 @@ function undoMove() {
   }
   selectedSquare = null;
   legalMovesForSelected = [];
+  hintMove = null;
   rebuildPieceMeshes();
   updateBoardHighlights();
   updateHUD();
+}
+
+function triggerHint() {
+  if (isAnyGameOver() || isAITurn() || activeAnimations.length > 0) return;
+  const best = chooseAIMove(engine, 'medium');
+  if (best) {
+    hintMove = best;
+    updateBoardHighlights();
+  }
+}
+
+function executeCastleButton(side) {
+  if (isAnyGameOver() || isAITurn() || activeAnimations.length > 0) return;
+  const castles = engine.getAvailableCastles(engine.turn);
+  const move = side === 'K' ? castles.kingSide : castles.queenSide;
+  if (move) {
+    performMoveWithAnimation(move.fromR, move.fromC, move.toR, move.toC);
+  }
 }
 
 modeSelect.addEventListener('change', () => {
@@ -574,6 +762,14 @@ difficultySelect.addEventListener('change', () => {
   aiDifficulty = difficultySelect.value;
 });
 
+timeSelect.addEventListener('change', () => {
+  timeControlSec = Number(timeSelect.value);
+  startNewGame();
+});
+
+btnCastleK.addEventListener('click', () => executeCastleButton('K'));
+btnCastleQ.addEventListener('click', () => executeCastleButton('Q'));
+btnHint.addEventListener('click', triggerHint);
 btnNew.addEventListener('click', startNewGame);
 btnGameOverNew.addEventListener('click', startNewGame);
 btnUndo.addEventListener('click', undoMove);
@@ -587,6 +783,7 @@ btnMute.addEventListener('click', () => {
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyU') undoMove();
+  else if (e.code === 'KeyH') triggerHint();
   else if (e.code === 'KeyC') setCameraSide(cameraSide === 'w' ? 'b' : 'w');
   else if (e.code === 'KeyM') {
     sound.toggleMute();
@@ -609,23 +806,40 @@ function animate(now) {
   const dtSec = Math.min(0.1, (now - lastTime) / 1000);
   lastTime = now;
 
-  if (activeAnimation) {
-    activeAnimation.progress += dtSec / activeAnimation.duration;
-    const t = Math.min(1, activeAnimation.progress);
-    const eased = 1 - Math.pow(1 - t, 3);
-    activeAnimation.mesh.position.x =
-      activeAnimation.startX + (activeAnimation.endX - activeAnimation.startX) * eased;
-    activeAnimation.mesh.position.z =
-      activeAnimation.startZ + (activeAnimation.endZ - activeAnimation.startZ) * eased;
-    activeAnimation.mesh.position.y = 0.04 + Math.sin(t * Math.PI) * 0.45;
+  // Update chess clock when game is active and moves have started
+  if (timeControlSec > 0 && !isAnyGameOver() && engine.moveLog.length > 0 && !pendingPromotion) {
+    clocks[engine.turn] = Math.max(0, clocks[engine.turn] - dtSec);
+    if (clocks[engine.turn] <= 0) {
+      timeoutWinner = engine.turn === 'w' ? 'b' : 'w';
+      sound.gameOver();
+      updateHUD();
+    } else {
+      updateClocksUI();
+    }
+  }
 
-    if (t >= 1) {
-      scene.remove(activeAnimation.mesh);
-      const { r, c } = activeAnimation.targetSquare;
-      if (boardPieceMeshes[r][c]) {
-        boardPieceMeshes[r][c].visible = true;
+  if (activeAnimations.length > 0) {
+    let finishedAll = true;
+    for (const anim of activeAnimations) {
+      if (anim.progress >= 1) continue;
+      anim.progress = Math.min(1, anim.progress + dtSec / anim.duration);
+      const t = anim.progress;
+      const eased = 1 - Math.pow(1 - t, 3);
+      anim.mesh.position.x = anim.startX + (anim.endX - anim.startX) * eased;
+      anim.mesh.position.z = anim.startZ + (anim.endZ - anim.startZ) * eased;
+      anim.mesh.position.y = 0.04 + Math.sin(t * Math.PI) * anim.arcHeight;
+      if (t < 1) finishedAll = false;
+    }
+
+    if (finishedAll) {
+      for (const anim of activeAnimations) {
+        scene.remove(anim.mesh);
+        const { r, c } = anim.targetSquare;
+        if (boardPieceMeshes[r][c]) {
+          boardPieceMeshes[r][c].visible = true;
+        }
       }
-      activeAnimation = null;
+      activeAnimations = [];
       updateHUD();
       scheduleAIIfNeeded();
     }

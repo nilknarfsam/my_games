@@ -4,14 +4,21 @@ Jogo completo de **Xadrez em 3D** no navegador com **Three.js**, **Vite**, peça
 
 ## Recursos
 
-- **Regras oficiais completas**: roque curto e longo, captura *en passant*, promoção de peão com escolha de peça (`♕ ♖ ♗ ♘`), detecção de xeque, xeque-mate, afogamento, regra dos 50 lances e material insuficiente.
-- **Modos de jogo**:
-  - **Contra IA** (jogando de Brancas ou de Pretas) com 3 níveis: **Fácil**, **Média** e **Difícil**.
-  - **2 Jogadores (Local)** no mesmo computador.
-- **Visual e interatividade 3D**:
-  - Seleção de peças e casas por *raycasting* com o mouse, indicadores 3D de movimentos válidos e capturas, destaque do último lance e alerta no Rei em xeque.
-  - Câmera orbital livre (arrastar e zoom) + botão para inverter a visão (`C`).
-  - Histórico de lances em notação algébrica (`SAN`), peças capturadas, botão **Desfazer (`U`)** e áudio procedural.
+- **Regras oficiais completas**: roque curto e longo, captura *en passant*, promoção de peão com escolha de peça (`♕ ♖ ♗ ♘`), detecção de xeque, xeque-mate, afogamento, repetição tripla, regra dos 50 lances e material insuficiente.
+- **Roque intuitivo em 3D**:
+  - Selecione o Rei e clique na casa destino (`g1`/`c1`) **ou diretamente na Torre (`h1`/`a1`)** (marcadas com anel dourado).
+  - Também funciona selecionando a Torre e clicando no Rei, ou pelos botões **Roque Curto (`O-O`)** e **Roque Longo (`O-O-O`)** na HUD quando disponíveis.
+  - Rei e Torre executam animação simultânea em 3D.
+- **Modos de jogo e Relógio**:
+  - **Contra IA** (de Brancas ou de Pretas) em 3 níveis (**Fácil**, **Média**, **Difícil**) e **2 Jogadores (Local)**.
+  - **Relógio configurável**: Sem Limite, **Blitz (5 min)** ou **Rápido (10 min)**.
+- **Análise e Assistência**:
+  - **Barra de avaliação** da posição em tempo real + botão **Dica de Jogada (`H`)** destacando o lance sugerido em verde no tabuleiro 3D.
+  - Câmera orbital livre (arrastar e zoom), botão **Girar Câmera (`C`)**, histórico em notação algébrica (`SAN`), peças capturadas, **Desfazer (`U`)** e áudio procedural (`M`).
+
+## Mapa de Melhorias
+
+Veja o plano completo das próximas fases em [`ROADMAP.md`](ROADMAP.md).
 
 ## Como jogar
 
