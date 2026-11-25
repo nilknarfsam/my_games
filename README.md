@@ -39,11 +39,11 @@ Um jogo de tiro tático em 2D com visão de cima inspirado em *Counter-Strike*, 
 
 ### Como jogar e testar o CS 2D
 
-- **Atalho direto (Windows)**: dê um duplo clique em [`jogar_cs_2d.bat`](jogar_cs_2d.bat) na raiz do repositório (ou execute `.\jogar_cs_2d.bat` no terminal).
+- **Atalho direto (Windows)**: abra a pasta [`launcher/`](launcher/README.md) e dê um duplo clique em [`jogar_cs_2d.bat`](launcher/jogar_cs_2d.bat) (ou execute `.\launcher\jogar_cs_2d.bat` no terminal).
 
 ```powershell
-# Executar direto pelo atalho
-.\jogar_cs_2d.bat
+# Executar direto pelo launcher
+.\launcher\jogar_cs_2d.bat
 
 # Ou via Python
 python .\jogo_cs_2d\cs_2d.py
@@ -61,14 +61,16 @@ python -m unittest discover -s jogo_cs_2d -v
 
 ## 🎮 Outros Jogos no Repositório
 
-| Pasta | Projeto | Destaques | Comando para executar |
+> 🚀 **Atalhos diretos (`.bat`):** todos os jogos têm um executável individual dentro da pasta [`launcher/`](launcher/README.md) para facilitar os testes.
+
+| Pasta | Projeto | Destaques | Launcher `.bat` |
 | --- | --- | --- | --- |
-| [`jogo_da_forca/`](jogo_da_forca/README.md) | **Jogo da Forca** | 100 palavras aleatórias com dicas, cronômetro de 20s por letra (conta como erro se acabar) e teclado virtual/físico | `python .\jogo_da_forca\forca.py` |
-| [`jogo_de_carro/`](jogo_de_carro/README.md) | **Jogo de Carro (3 Faixas)** | Controle pelas setas, 10 níveis de velocidade jogáveis e carros aleatórios que mudam de estilo e faixa | `python .\jogo_de_carro\carro.py` |
-| [`jogo_de_nave/`](jogo_de_nave/README.md) | **Jogo de Nave** | Movimento em 4 direções, 3 corações, 3 níveis de tiro, bombas/armas especiais com limite de 20s e naves malucas | `python .\jogo_de_nave\nave.py` |
-| [`jogo_da_cobrinha/`](jogo_da_cobrinha/README.md) | **Jogo da Cobrinha** | Crescimento progressivo, comida bônus, objetos de obstáculo e outras cobras rivais na arena | `python .\jogo_da_cobrinha\cobrinha.py` |
-| [`jogo_tetris_3d/`](jogo_tetris_3d/README.md) | **Tetris 3D** | Tabuleiro 3D em WebGL (Three.js), blocos chanfrados com sombras, câmera orbital, ghost piece, hold e áudio procedural | `.\jogar_tetris_3d.bat` |
-| [`jogo_xadrez_3d/`](jogo_xadrez_3d/README.md) | **Xadrez 3D** | Peças 3D esculpidas (Three.js), regras oficiais completas, IA Minimax (3 níveis), modo 2 jogadores e notação algébrica | `.\jogar_xadrez_3d.bat` |
+| [`jogo_da_forca/`](jogo_da_forca/README.md) | **Jogo da Forca** | 100 palavras aleatórias com dicas, cronômetro de 20s por letra (conta como erro se acabar) e teclado virtual/físico | [`.\launcher\jogar_forca.bat`](launcher/jogar_forca.bat) |
+| [`jogo_de_carro/`](jogo_de_carro/README.md) | **Jogo de Carro (3 Faixas)** | Controle pelas setas, 10 níveis de velocidade jogáveis e carros aleatórios que mudam de estilo e faixa | [`.\launcher\jogar_carro.bat`](launcher/jogar_carro.bat) |
+| [`jogo_de_nave/`](jogo_de_nave/README.md) | **Jogo de Nave** | Movimento em 4 direções, 3 corações, 3 níveis de tiro, bombas/armas especiais com limite de 20s e naves malucas | [`.\launcher\jogar_nave.bat`](launcher/jogar_nave.bat) |
+| [`jogo_da_cobrinha/`](jogo_da_cobrinha/README.md) | **Jogo da Cobrinha** | Crescimento progressivo, comida bônus, objetos de obstáculo e outras cobras rivais na arena | [`.\launcher\jogar_cobrinha.bat`](launcher/jogar_cobrinha.bat) |
+| [`jogo_tetris_3d/`](jogo_tetris_3d/README.md) | **Tetris 3D** | Tabuleiro 3D em WebGL (Three.js), blocos chanfrados com sombras, câmera orbital, ghost piece, hold e áudio procedural | [`.\launcher\jogar_tetris_3d.bat`](launcher/jogar_tetris_3d.bat) |
+| [`jogo_xadrez_3d/`](jogo_xadrez_3d/README.md) | **Xadrez 3D** | Peças 3D esculpidas (Three.js), regras oficiais completas, IA Minimax (3 níveis), modo 2 jogadores e notação algébrica | [`.\launcher\jogar_xadrez_3d.bat`](launcher/jogar_xadrez_3d.bat) |
 
 ---
 
