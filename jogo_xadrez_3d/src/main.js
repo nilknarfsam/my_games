@@ -57,7 +57,10 @@ if (aiWorker) {
 }
 
 // --- DOM Elements ---
+const appEl = document.getElementById('app');
 const canvasEl = document.getElementById('scene');
+const btnMobileDrawer = document.getElementById('btn-mobile-drawer');
+const btnMobileClose = document.getElementById('btn-mobile-close');
 const turnDot = document.getElementById('turn-dot');
 const turnText = document.getElementById('turn-text');
 const evalLabel = document.getElementById('eval-label');
@@ -213,7 +216,7 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.enablePan = false;
 controls.minDistance = 7;
-controls.maxDistance = 20;
+controls.maxDistance = 30;
 controls.minPolarAngle = 0.25;
 controls.maxPolarAngle = Math.PI * 0.45;
 controls.target.set(0, 0.2, 0);
@@ -603,7 +606,11 @@ function isAITurn() {
 
 function setCameraSide(side) {
   cameraSide = side;
-  camera.position.set(0, 9.5, side === 'w' ? 10.5 : -10.5);
+  const aspect = window.innerWidth / Math.max(1, window.innerHeight);
+  const portraitScale = aspect < 1 ? Math.min(2.15, 0.9 / Math.max(aspect, 0.42)) : 1;
+  const zDist = 10.5 * portraitScale;
+  const yHeight = 9.5 * portraitScale;
+  camera.position.set(0, yHeight, side === 'w' ? zDist : -zDist);
   controls.target.set(0, 0.2, 0);
   controls.update();
 }
@@ -745,7 +752,8 @@ canvasEl.addEventListener('pointerup', (e) => {
   if (!pointerDownPos) return;
   const dist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
   pointerDownPos = null;
-  if (dist > 6) return;
+  const tapTolerance = e.pointerType === 'touch' ? 14 : 6;
+  if (dist > tapTolerance) return;
   if (activeAnimations.length > 0 || pendingPromotion || isAITurn() || aiThinking || isAnyGameOver()) {
     return;
   }
@@ -872,6 +880,7 @@ function clearAnimations() {
 }
 
 function startNewGame() {
+  appEl.classList.remove('mobile-drawer-open');
   cancelPendingAI();
   clearAnimations();
   engine.reset();
@@ -964,6 +973,14 @@ btnMute.addEventListener('click', () => {
   updateHUD();
 });
 
+btnMobileDrawer?.addEventListener('click', () => {
+  appEl.classList.add('mobile-drawer-open');
+});
+
+btnMobileClose?.addEventListener('click', () => {
+  appEl.classList.remove('mobile-drawer-open');
+});
+
 window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyU') undoMove();
   else if (e.code === 'KeyH') triggerHint();
@@ -978,6 +995,7 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  setCameraSide(cameraSide);
 });
 
 // --- Initialization (Restore saved match or start fresh) ---
