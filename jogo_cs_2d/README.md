@@ -4,11 +4,12 @@ Jogo de tiro tático em 2D inspirado em *Counter-Strike*, desenvolvido em **Pyth
 
 ## Destaques
 
+- **Bonecos detalhados vistos de cima**: ombros, colete tático, mochila, botas com passo animado, dois braços segurando a arma, capacete e visor direcionado ao mouse.
+- **Menu inicial e de opções (`Esc`)**: escolha **Dificuldade** (`Fácil`, `Normal`, `Difícil`), **Arma Inicial** (`Rifle Tático`, `Submetralhadora`, `Pistola Pesada`), **Quantidade de Oponentes** (`1` a `4`, padrão `2`) e ative/desative cone de visão e mira laser.
 - **Movimentação em `WASD`**: `W` (frente/cima), `S` (trás/baixo), `A` (esquerda) e `D` (direita) com deslizamento suave em paredes e caixas.
 - **Visão e mira com o mouse**: rotação em 360°, cone de visão 2D recortado em tempo real pelas paredes (`cast_ray`) e mira laser.
-- **Tiro e recarga**: botão esquerdo do mouse dispara (pente de `15` balas) e tecla `R` recarrega (`1.25s`) com barra de progresso acima do personagem.
+- **Tiro e recarga**: botão esquerdo do mouse dispara e tecla `R` recarrega com barra de progresso acima do personagem.
 - **Mapa pequeno tático (`760×540`)**: paredes externas, muros laterais e caixas de cobertura para *peek* e troca de tiro.
-- **Apenas 2 oponentes (`ENEMY_COUNT = 2`)**: dois bots (`100` HP cada) com linha de visão real (`has_line_of_sight` — não atiram através das paredes), patrulha e movimentação lateral em combate.
 
 ## Controles
 

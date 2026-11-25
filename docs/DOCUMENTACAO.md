@@ -65,11 +65,13 @@ my_games/
 **Atalho direto:** `jogar_cs_2d.bat` (na raiz do repositório)
 
 ### 2.1 Visão geral da jogabilidade
-- Você joga como o **CT** (azul) contra **2 oponentes TR** (vermelhos) em um mapa tático compacto (`760×540` pixels).
-- O mapa possui paredes de contorno, muros laterais e caixas centrais/laterais de cobertura (`build_small_map()`).
-- Os movimentos seguem `WASD` com deslizamento suave ao encostar em paredes ou caixas (`_move_circle_with_slide`).
-- A visão e a mira seguem o **mouse em 360°**, com um **cone de visão 2D** recortado pelas paredes (`cast_ray`) e linha laser até o primeiro obstáculo.
-- Os 2 bots oponentes usam verificação real de linha de visão (`has_line_of_sight`) antes de atirar: eles patrulham quando estão fora de visão e fazem *strafe* lateral durante o combate.
+- Ao abrir o jogo, você passa pelo **Menu & Opções** (`Esc` para reabrir a qualquer momento), podendo escolher:
+  - **Dificuldade dos oponentes**: `Fácil`, `Normal` ou `Difícil`;
+  - **Arma inicial**: `Rifle Tático` (15 balas, dano 34), `Submetralhadora` (25 balas, dano 22) ou `Pistola Pesada` (9 balas, dano 50);
+  - **Quantidade de oponentes**: de `1` a `4` bots (padrão `2`);
+  - **Visuais táticos**: ativar/desativar o cone de visão 2D e a mira laser.
+- Os personagens são desenhados **vistos de cima** (`_draw_topdown_soldier`): sombra no chão, botas animadas ao andar, mochila, ombros/colete tático, braços segurando a arma selecionada, capacete e visor voltado para o mouse.
+- Os movimentos seguem `WASD` com deslizamento suave ao encostar em paredes ou caixas (`_move_circle_with_slide`), e os bots usam `has_line_of_sight` antes de atirar (não atiram através das paredes).
 
 ### 2.2 Controles
 - `W` / `S` / `A` / `D`: movimentação para frente (cima), trás (baixo), esquerda e direita.

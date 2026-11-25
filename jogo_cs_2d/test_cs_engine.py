@@ -6,9 +6,11 @@ import unittest
 from cs_engine import (
     CS2DEngine,
     ENEMY_COUNT,
+    GameConfig,
     InputState,
     MAGAZINE_SIZE,
     RELOAD_DURATION_SEC,
+    WEAPONS,
 )
 
 
@@ -55,7 +57,6 @@ class TestCS2DEngine(unittest.TestCase):
             bot.hp = 10
             bot.x = engine.player_x + 40.0
             bot.y = engine.player_y
-            # Shoot directly into bot
             engine.fire_cooldown = 0.0
             engine.update(
                 0.01,
@@ -69,9 +70,23 @@ class TestCS2DEngine(unittest.TestCase):
 
     def test_walls_block_line_of_sight(self) -> None:
         engine = CS2DEngine(rng=random.Random(5))
-        # Mid crate is at x=330..430, y=225..315
         self.assertFalse(engine.has_line_of_sight(300.0, 270.0, 460.0, 270.0))
         self.assertTrue(engine.has_line_of_sight(50.0, 50.0, 200.0, 50.0))
+
+    def test_menu_config_changes_weapon_difficulty_and_opponent_count(self) -> None:
+        engine = CS2DEngine(rng=random.Random(6))
+        cfg = GameConfig(
+            difficulty="hard",
+            weapon="smg",
+            opponent_count=4,
+            show_vision_cone=False,
+            show_laser_sight=False,
+        )
+        engine.apply_config(cfg, reset_match=True)
+        self.assertEqual(len(engine.opponents), 4)
+        self.assertEqual(engine.ammo, WEAPONS["smg"].magazine_size)
+        self.assertEqual(engine.difficulty_spec.label, "Difícil")
+        self.assertFalse(engine.config.show_vision_cone)
 
 
 if __name__ == "__main__":
