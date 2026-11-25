@@ -80,3 +80,50 @@ test('AI finds forced mate in 1 when available', () => {
   const res = engine.makeMove(best.fromR, best.fromC, best.toR, best.toC, best.promotion ?? 'q');
   assert.equal(res.status, 'checkmate');
 });
+
+test('supports queenside castling and getAvailableCastles helper', () => {
+  const engine = new ChessEngine();
+  engine.board[7][1] = null;
+  engine.board[7][2] = null;
+  engine.board[7][3] = null;
+
+  const castles = engine.getAvailableCastles('w');
+  assert.equal(castles.kingSide, null);
+  assert.ok(castles.queenSide);
+
+  const res = engine.makeMove(7, 4, 7, 2);
+  assert.equal(res.san, 'O-O-O');
+  assert.equal(engine.board[7][2]?.type, 'k');
+  assert.equal(engine.board[7][3]?.type, 'r');
+});
+
+test('blocks castling through an attacked square', () => {
+  const engine = new ChessEngine();
+  engine.board[7][5] = null;
+  engine.board[7][6] = null;
+  engine.board[6][5] = null; // remove f2 pawn
+  engine.board[2][5] = { type: 'r', color: 'b' }; // black rook attacks f1
+
+  const castles = engine.getAvailableCastles('w');
+  assert.equal(castles.kingSide, null);
+});
+
+test('detects threefold repetition draw and undo restores status', () => {
+  const engine = new ChessEngine();
+  const cycle = () => {
+    assert.ok(engine.makeMove(7, 6, 5, 5)); // Nf3
+    assert.ok(engine.makeMove(0, 6, 2, 5)); // Nf6
+    assert.ok(engine.makeMove(5, 5, 7, 6)); // Ng1
+    assert.ok(engine.makeMove(2, 5, 0, 6)); // Ng8
+  };
+
+  cycle();
+  assert.equal(engine.status, 'playing');
+  cycle();
+  assert.equal(engine.status, 'draw_repetition');
+  assert.equal(engine.isGameOver(), true);
+
+  assert.equal(engine.undo(), true);
+  assert.equal(engine.status, 'playing');
+  assert.equal(engine.isGameOver(), false);
+});

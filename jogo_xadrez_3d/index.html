@@ -18,12 +18,27 @@
         <div class="panel status-panel">
           <div class="turn-indicator">
             <span id="turn-dot" class="dot dot-white"></span>
-            <div>
+            <div class="turn-meta">
               <span class="label">Turno Atual</span>
               <strong id="turn-text">Brancas</strong>
             </div>
+            <span id="eval-label" class="eval-pill">0.0</span>
+          </div>
+          <div class="eval-bar" title="Avaliação da posição (Brancas vs Pretas)">
+            <div id="eval-fill" class="eval-fill" style="width: 50%"></div>
           </div>
           <p id="status-text" class="status-sub">Selecione uma peça para jogar</p>
+        </div>
+
+        <div class="panel clocks-panel" id="clocks-panel">
+          <div class="clock-box" id="clock-white-box">
+            <span class="label">Brancas</span>
+            <strong id="clock-white">05:00</strong>
+          </div>
+          <div class="clock-box" id="clock-black-box">
+            <span class="label">Pretas</span>
+            <strong id="clock-black">05:00</strong>
+          </div>
         </div>
 
         <div class="panel config-panel">
@@ -35,14 +50,24 @@
               <option value="pvp">2 Jogadores (Local)</option>
             </select>
           </label>
-          <label class="field" id="difficulty-field">
-            <span class="label">Dificuldade da IA</span>
-            <select id="difficulty-select">
-              <option value="easy">Fácil</option>
-              <option value="medium" selected>Média</option>
-              <option value="hard">Difícil</option>
-            </select>
-          </label>
+          <div class="config-row">
+            <label class="field" id="difficulty-field">
+              <span class="label">Dificuldade</span>
+              <select id="difficulty-select">
+                <option value="easy">Fácil</option>
+                <option value="medium" selected>Média</option>
+                <option value="hard">Difícil</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="label">Relógio</span>
+              <select id="time-select">
+                <option value="0" selected>Sem Limite</option>
+                <option value="300">Blitz 5 min</option>
+                <option value="600">Rápido 10 min</option>
+              </select>
+            </label>
+          </div>
         </div>
 
         <div class="panel captured-panel">
@@ -60,6 +85,11 @@
       <aside class="hud hud-right">
         <div class="panel actions-panel">
           <button id="btn-new" class="btn btn-primary" type="button">Nova Partida</button>
+          <div id="castle-actions" class="castle-actions hidden">
+            <button id="btn-castle-k" class="btn btn-gold" type="button">♔ Roque Curto (O-O)</button>
+            <button id="btn-castle-q" class="btn btn-gold" type="button">♔ Roque Longo (O-O-O)</button>
+          </div>
+          <button id="btn-hint" class="btn" type="button">Dica de Jogada (H)</button>
           <button id="btn-undo" class="btn" type="button">Desfazer Lance (U)</button>
           <button id="btn-flip" class="btn" type="button">Girar Câmera (C)</button>
           <button id="btn-mute" class="btn" type="button">Som: Ligado (M)</button>
